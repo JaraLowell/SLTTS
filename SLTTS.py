@@ -42,6 +42,10 @@ def spell_check_message(message):
     cleaned_message = re.sub(r'[^\p{L}\d\s\p{P}]', '', message, flags=re.UNICODE)
     message = cleaned_message.strip()
 
+    """Collapse repeated characters."""
+    # Replace sequences of the same character (3 or more) with a single character
+    message = re.sub(r'(.)\1{2,}', r'\1', message)
+
     """Check and correct spelling in the message."""
     exceptions = {"Gor", "Kurrii", "Tal", "Gorean"}
     matches = tool.check(message)
@@ -113,6 +117,7 @@ def monitor_log(log_file):
                             try:
                                 if '[' in line and ']' in line:
                                     isemote = False
+                                    isrepat = False
                                     # Get tje timestamp and the rest of the line
                                     timestamp, rest = line.split(']', 1)
                                     # Get the name
@@ -134,7 +139,11 @@ def monitor_log(log_file):
                                                 first_name = tmp[0].capitalize()
 
                                     if first_name:
-                                        last_user = first_name  # Update the last user
+                                        if last_user != first_name:
+                                            last_user = first_name  # Update the last user
+                                            isrepat = False
+                                        else:
+                                            isrepat = True
                                         # Get the message part and remove leading/trailing spaces
                                         message = message.strip()
                                         # if the message starts with "/me", remove it
@@ -154,7 +163,9 @@ def monitor_log(log_file):
                                         # Check if the message is not empty after spell check
                                         if message:
                                             last_message = message  # Update the last message
-                                            if isemote:
+                                            if isrepat:
+                                                to_speak = f"{message}"
+                                            elif isemote:
                                                 to_speak = f"{first_name} {message}"
                                             else:
                                                 to_speak = f"{first_name} says: {message}"
