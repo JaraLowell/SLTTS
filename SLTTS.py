@@ -46,6 +46,16 @@ def spell_check_message(message):
     # Replace sequences of the same character (3 or more) with a single character
     message = re.sub(r'(.)\1{2,}', r'\1', message)
 
+    """Filter and simplify Second Life map URLs."""
+    if 'maps.secondlife.com' in message:
+        # Replace Second Life map URLs with the region name
+        message = re.sub(r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+', lambda match: match.group(1).replace('%20', ' '), message)
+
+    """Filter and simplify URLs."""
+    if 'https' in message:
+        # Replace URLs with their domain (e.g., https://youtu.be/wgsHF5DTCn8 -> youtu.be)
+        message = re.sub(r'https?://(?:www\.)?([^/\s]+).*', r'\1', message)
+
     """RReplace some common abbreviations."""
     list_slang = {
         "gonna": "going to",
@@ -166,7 +176,7 @@ def monitor_log(log_file):
                                             if tmp[0].isalpha() and tmp[1].isalpha():
                                                 first_name = tmp[0].capitalize()
                                         elif len(tmp) == 1:
-                                            if tmp[0].isalpha():
+                                            if tmp[0].isalpha() and (tmp[0] != 'zCS' or tmp[0] != 'GM'):
                                                 first_name = tmp[0].capitalize()
 
                                     if first_name:
