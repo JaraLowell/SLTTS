@@ -46,6 +46,33 @@ def spell_check_message(message):
     # Replace sequences of the same character (3 or more) with a single character
     message = re.sub(r'(.)\1{2,}', r'\1', message)
 
+    """RReplace some common abbreviations."""
+    list_slang = {
+        "gonna": "going to",
+        "gotta": "got to",
+        "wanna": "want to",
+        "kinda": "kind of",
+        "sorta": "sort of",
+        "shoulda": "should have",
+        "coulda": "could have",
+        "woulda": "would have",
+        "gotcha": "got you",
+        "lemme": "let me",
+        "gimme": "give me",
+        "brb:": "be right back",
+        "omg": "oh my god",
+        "lol": "laughing out loud",
+        "afk": "away from keyboard",
+        "btw": "by the way",
+        "hehe": "laughs",
+        "hihi": "laughs",
+        " rp": " role play",
+        " sl": "Second Life",
+        "ctf": "Capture the Flag",
+    }
+    for slang, replacement in list_slang.items():
+        message = re.sub(rf'\b{slang}\b', replacement, message, flags=re.IGNORECASE)
+
     """Check and correct spelling in the message."""
     exceptions = {"Gor", "Kurrii", "Tal", "Gorean"}
     matches = tool.check(message)
@@ -131,7 +158,9 @@ def monitor_log(log_file):
                                         # Using display name format but only if it has 2 words tha are alphabetical
                                         speaker = speaker_part.strip()
                                         tmp = speaker.split(' ')
-                                        if len(tmp) == 2:
+                                        if tmp[0] == 'Second' and tmp[1] == 'Life':
+                                            first_name = None  # Ignore Second Life system messages as a name
+                                        elif len(tmp) == 2:
                                             if tmp[0].isalpha() and tmp[1].isalpha():
                                                 first_name = tmp[0].capitalize()
                                         elif len(tmp) == 1:
