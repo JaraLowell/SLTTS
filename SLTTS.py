@@ -165,11 +165,13 @@ def monitor_log(log_file):
                                             last_message = message  # Update the last message
                                             if isrepat:
                                                 to_speak = f"{message}"
+                                                print(f"           {message}")  # Debug print
                                             elif isemote:
                                                 to_speak = f"{first_name} {message}"
+                                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")  # Debug print
                                             else:
                                                 to_speak = f"{first_name} says: {message}"
-                                            print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")  # Debug print
+                                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")  # Debug print
                                             asyncio.run(speak_text(to_speak))
                                     else:
                                         last_user = None  # Reset last user if no valid name found
