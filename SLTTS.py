@@ -69,6 +69,8 @@ def spell_check_message(message):
         " rp": " role play",
         " sl": " Second Life",
         "ctf": "Capture the Flag",
+        "ooc": "Out of Character",
+        " ic": "In Character",
     }
     for slang, replacement in list_slang.items():
         message = re.sub(rf'\b{slang}\b', replacement, message, flags=re.IGNORECASE)
