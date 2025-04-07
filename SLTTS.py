@@ -67,7 +67,7 @@ def spell_check_message(message):
         "hehe": "laughs",
         "hihi": "laughs",
         " rp": " role play",
-        " sl": "Second Life",
+        " sl": " Second Life",
         "ctf": "Capture the Flag",
     }
     for slang, replacement in list_slang.items():
