@@ -35,8 +35,10 @@ tool = language_tool_python.LanguageTool('en-US')
 is_playing = False
 last_message = None
 last_user = None
+Enable_Spelling_Check = True
 
 def spell_check_message(message):
+    global Enable_Spelling_Check
     """Remove non-alphabetical characters while preserving punctuation and spaces."""
     # Keep letters (\p{L}), punctuation, and spaces
     cleaned_message = re.sub(r'[^\p{L}\d\s\p{P}]', '', message, flags=re.UNICODE)
@@ -86,17 +88,20 @@ def spell_check_message(message):
         message = re.sub(rf'\b{slang}\b', replacement, message, flags=re.IGNORECASE)
 
     """Check and correct spelling in the message."""
-    exceptions = {"Gor", "Kurrii", "Tal", "Gorean"}
-    matches = tool.check(message)
-    filtered_matches = [
-        match for match in matches
-        if not any(exception.lower() in match.context.lower() for exception in exceptions)
-    ]
-    corrected_message = language_tool_python.utils.correct(message, filtered_matches)
+    if Enable_Spelling_Check:
+        exceptions = {"Gor", "Kurrii", "Tal", "Gorean"}
+        matches = tool.check(message)
+        filtered_matches = [
+            match for match in matches
+            if not any(exception.lower() in match.context.lower() for exception in exceptions)
+        ]
+        corrected_message = language_tool_python.utils.correct(message, filtered_matches)
 
-    # Ensure exception words are capitalized in the final result
-    for exception in exceptions:
-        corrected_message = re.sub( rf'\b{exception.lower()}\b', exception, corrected_message, flags=re.IGNORECASE )
+        # Ensure exception words are capitalized in the final result
+        for exception in exceptions:
+            corrected_message = re.sub( rf'\b{exception.lower()}\b', exception, corrected_message, flags=re.IGNORECASE )
+    else:
+        corrected_message = message
 
     return corrected_message
 
@@ -128,7 +133,7 @@ async def speak_text(text):
 
 def monitor_log(log_file):
     print("Monitoring log file... Press Ctrl+C to stop.")
-    global last_message, last_user
+    global last_message, last_user, IgnoreList
 
     # Start at the end of the file
     last_position = 0
@@ -162,22 +167,26 @@ def monitor_log(log_file):
                                     # Get the name
                                     speaker_part, message = rest.split(':', 1)
                                     first_name = None
-                                    if '(' in speaker_part and ')' in speaker_part:
-                                        # Using legacy name format
-                                        speaker = speaker_part.split('(')[1].split(')')[0].strip()  # Extract the part inside parentheses
-                                        first_name = speaker.split('.')[0].capitalize()  # Extract the first part before the dot
+                                    # IgnoreList
+                                    if (speaker_part.strip()).lower() not in IgnoreList:
+                                        if '(' in speaker_part and ')' in speaker_part:
+                                            # Using legacy name format
+                                            speaker = speaker_part.split('(')[1].split(')')[0].strip()  # Extract the part inside parentheses
+                                            first_name = speaker.split('.')[0].capitalize()  # Extract the first part before the dot
+                                        else:
+                                            # Using display name format but only if it has 2 words tha are alphabetical
+                                            speaker = speaker_part.strip()
+                                            tmp = speaker.split(' ')
+                                            if tmp[0] == 'Second' and tmp[1] == 'Life':
+                                                first_name = None  # Ignore Second Life system messages as a name
+                                            elif len(tmp) == 2:
+                                                if tmp[0].isalpha() and tmp[1].isalpha():
+                                                    first_name = tmp[0].capitalize()
+                                            elif len(tmp) == 1:
+                                                if tmp[0].isalpha():
+                                                    first_name = tmp[0].capitalize()
                                     else:
-                                        # Using display name format but only if it has 2 words tha are alphabetical
-                                        speaker = speaker_part.strip()
-                                        tmp = speaker.split(' ')
-                                        if tmp[0] == 'Second' and tmp[1] == 'Life':
-                                            first_name = None  # Ignore Second Life system messages as a name
-                                        elif len(tmp) == 2:
-                                            if tmp[0].isalpha() and tmp[1].isalpha():
-                                                first_name = tmp[0].capitalize()
-                                        elif len(tmp) == 1:
-                                            if tmp[0].isalpha() and (tmp[0] != 'zCS' or tmp[0] != 'GM'):
-                                                first_name = tmp[0].capitalize()
+                                        print(f"!Ignored: {speaker_part.strip()}")  # Debug print
 
                                     if first_name:
                                         if last_user != first_name:
@@ -232,4 +241,6 @@ def monitor_log(log_file):
 
 if __name__ == "__main__":
     log_file_path = r"D:\SecondLife\Logs\nadia_windlow\chat.txt"
+    Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
+    IgnoreList = ["zcs", "gm", "murr"] # Object names we want to ignore in lower case
     monitor_log(log_file_path)
