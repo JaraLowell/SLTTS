@@ -59,7 +59,9 @@ def spell_check_message(message):
         message = re.sub(r'https?://(?:www\.)?([^/\s]+).*', r'\1', message)
 
     """Replace hyphen with the word 'minus'."""
-    message = message.replace('-', ' minus ')
+    if '-' in message:
+        message = re.sub(r'(?<=\d)-(?=\d|\=)', ' minus ', message)
+        message = re.sub(r'(?<=\w)-(?=\w)', ' ', message)
 
     """Replace some common abbreviations."""
     list_slang = {
