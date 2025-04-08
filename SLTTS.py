@@ -49,7 +49,7 @@ def spell_check_message(message):
         "gonna": "going to", "gotta": "got to", "wanna": "want to", "kinda": "kind of",
         "sorta": "sort of", "shoulda": "should have", "coulda": "could have", "tough": "though",
         "woulda": "would have", "gotcha": "got you", "lemme": "let me", "gimme": "give me",
-        "brb:": "be right back", "omg": "oh my god", "lol": "laughing out loud",
+        "brb": "be right back", "omg": "oh my god", "lol": "laughing out loud",
         "afk": "away from keyboard", "btw": "by the way", "hehe": "laughs", "hihi": "laughs",
         " rp": " role play", " sl": " Second Life", "ctf": "Capture the Flag", "kurrii": "Kurr-rie",
         "ooc": "Out of Character", " ic": "In Character", "tal ": "Taal ", "gor": "Gor"
@@ -158,7 +158,7 @@ def monitor_log(log_file):
                                             # Using display name format but only if it has 2 words tha are alphabetical
                                             speaker = speaker_part.strip()
                                             tmp = speaker.split(' ')
-                                            if tmp[0] == 'Second' and tmp[1] == 'Life':
+                                            if speaker == 'Second Life':
                                                 first_name = None  # Ignore Second Life system messages as a name
                                             elif len(tmp) == 2:
                                                 if tmp[0].isalpha() and tmp[1].isalpha():
@@ -167,7 +167,7 @@ def monitor_log(log_file):
                                                 if speaker.isalnum():
                                                     first_name = speaker.capitalize()
                                     else:
-                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED {speaker_part.strip()}: {message.strip()}")  # Debug print
+                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {speaker_part.strip()}: {message.strip()}")  # Debug print
 
                                     if first_name:
                                         if last_user != first_name:
@@ -212,22 +212,24 @@ def monitor_log(log_file):
                                             last_chat = time.time()
                                     else:
                                         last_user = None  # Reset last user if no valid name found
-                                else:
+                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED NO NAME! {speaker_part.strip()}: {message.strip()}")  # Debug print
+                                elif last_user != None:
                                     message = line.strip()
                                     message = spell_check_message(message)
                                     if last_message != message and message:
                                         last_message = message
-                                        if last_user != None:
-                                            print(f"           {message}")  # Debug print
-                                            asyncio.run(speak_text(message))
+                                        print(f"           {message}")  # Debug print
+                                        asyncio.run(speak_text(message))
+                                else:
+                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED No TimmeTamp!: {line.strip()}")
                             except ValueError:
-                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] Could not parse line: {line.strip()}")
+                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] ERROR! Could not parse line: {line.strip()}")
             time.sleep(1)  # Poll every second
     except KeyboardInterrupt:
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\SLAvatarNAme\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\SL_Avatar.Name\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
