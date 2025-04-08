@@ -31,7 +31,7 @@ def spell_check_message(message):
     message = re.sub(r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+', lambda match: match.group(1).replace('%20', ' '), message)
 
     # Replace Second Life agent or group links with "Second Life Link"
-    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/about', 'Second Life link', message)
+    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/about', r'\1 link', message)
 
     # Simplify general URLs to their domain
     message = re.sub(r'https?://(?:www\.)?([^/\s]+).*', r'\1 link', message)
@@ -87,7 +87,11 @@ async def speak_text(text2say):
         output_file = "output.mp3"
         # options are: Female en-US-AvaMultilingualNeural or en-US-EmmaMultilingualNeural
         #              Male   en-US-AndrewMultilingualNeural or en-US-BrianMultilingualNeural
-        await Communicate(text = text2say, voice='en-US-EmmaMultilingualNeural', rate = '+8%', pitch = '+0Hz').save(output_file)
+        try:
+            await Communicate(text = text2say, voice='en-US-EmmaMultilingualNeural', rate = '+8%', pitch = '+0Hz').save(output_file)
+        except Exception as e:
+            print(f"Error generating audio: {e}")
+            return
 
         # Play the audio file
         pygame.mixer.music.load(output_file)
@@ -226,7 +230,7 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\SLAvatarName\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
