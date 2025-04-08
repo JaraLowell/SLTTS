@@ -163,8 +163,8 @@ def monitor_log(log_file):
                                             tmp = speaker.split(' ')
                                             if speaker == 'Second Life':
                                                 first_name = None  # Ignore Second Life system messages as a name
-                                            elif len(tmp) == 2:
-                                                if tmp[0].isalpha() and tmp[1].isalpha():
+                                            elif len(tmp) > 1:
+                                                if tmp[0].isalnum() and tmp[1].isalnum():
                                                     first_name = tmp[0].capitalize()
                                             elif len(tmp) == 1:
                                                 if speaker.isalnum():
@@ -230,7 +230,7 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\SLAvater.Name\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
