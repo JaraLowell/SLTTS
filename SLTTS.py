@@ -27,18 +27,17 @@ def spell_check_message(message):
     # Remove unwanted characters while preserving letters, punctuation, spaces, digits, and math symbols
     message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE).strip()
 
-    # Collapse repeated characters (3 or more)
-    message = re.sub(r'(.)\1{2,}', r'\1', message)
-
     # Simplify Second Life map URLs
-    message = re.sub(
-        r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+',
-        lambda match: match.group(1).replace('%20', ' '),
-        message
-    )
+    message = re.sub(r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+', lambda match: match.group(1).replace('%20', ' '), message)
+
+    # Replace Second Life agent or group links with "Second Life Link"
+    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/about', 'Second Life link', message)
 
     # Simplify general URLs to their domain
-    message = re.sub(r'https?://(?:www\.)?([^/\s]+).*', r'\1', message)
+    message = re.sub(r'https?://(?:www\.)?([^/\s]+).*', r'\1 link', message)
+
+    # Collapse repeated characters (3 or more)
+    message = re.sub(r'(.)\1{2,}', r'\1', message)
 
     # Replace hyphen with "minus" or space based on context
     message = re.sub(r'(?<=\d)-(?=\d|\=)', ' minus ', message)
@@ -174,7 +173,7 @@ def monitor_log(log_file):
                                             # Update the last user if it's different from the current one
                                             last_user = first_name
                                             isrepat = False
-                                        elif time.time() - last_chat >= 300:
+                                        elif time.time() - last_chat >= 120:
                                             # Check if more than 5 minutes have elapsed since same speaker last spoke
                                             isrepat = False
                                         else:
@@ -229,7 +228,7 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\SL_Avatar.Name\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\SLAvatarName\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
