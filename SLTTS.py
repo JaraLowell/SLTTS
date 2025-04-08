@@ -72,7 +72,7 @@ def spell_check_message(message):
 
     return message
 
-async def speak_text(text):
+async def speak_text(text2say):
     """Use Edge TTS to speak the given text."""
     global is_playing
 
@@ -85,7 +85,9 @@ async def speak_text(text):
     try:
         # Generate and save the audio file
         output_file = "output.mp3"
-        await Communicate(text=text).save(output_file)
+        # options are: Female en-US-AvaMultilingualNeural or en-US-EmmaMultilingualNeural
+        #              Male   en-US-AndrewMultilingualNeural or en-US-BrianMultilingualNeural
+        await Communicate(text = text2say, voice='en-US-EmmaMultilingualNeural', rate = '+8%', pitch = '+0Hz').save(output_file)
 
         # Play the audio file
         pygame.mixer.music.load(output_file)
