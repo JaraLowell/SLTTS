@@ -18,6 +18,7 @@ pygame.mixer.music.set_volume(0.5)  # Set volume to 50%
 is_playing = False
 last_message = None
 last_user = None
+last_chat = 0
 Enable_Spelling_Check = True
 
 def spell_check_message(message):
@@ -104,7 +105,8 @@ async def speak_text(text2say):
 
 def monitor_log(log_file):
     print("Monitoring log file... Press Ctrl+C to stop.")
-    global last_message, last_user, IgnoreList
+    asyncio.run(speak_text("Starting up! Monitoring log file..."))
+    global last_message, last_user, IgnoreList, last_chat
 
     # Start at the end of the file
     last_position = 0
@@ -169,7 +171,11 @@ def monitor_log(log_file):
 
                                     if first_name:
                                         if last_user != first_name:
-                                            last_user = first_name  # Update the last user
+                                            # Update the last user if it's different from the current one
+                                            last_user = first_name
+                                            isrepat = False
+                                        elif time.time() - last_chat >= 300:
+                                            # Check if more than 5 minutes have elapsed since same speaker last spoke
                                             isrepat = False
                                         else:
                                             isrepat = True
@@ -203,6 +209,7 @@ def monitor_log(log_file):
                                                 to_speak = f"{first_name} says: {message}"
                                                 print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")  # Debug print
                                             asyncio.run(speak_text(to_speak))
+                                            last_chat = time.time()
                                     else:
                                         last_user = None  # Reset last user if no valid name found
                                 else:
@@ -221,6 +228,7 @@ def monitor_log(log_file):
 
 if __name__ == "__main__":
     log_file_path = r"D:\SecondLife\Logs\sl_resident\chat.txt"
+    # log_file_path = r"C:\Users\jara\AppData\Roaming\Radegast\Kenaz Huntress\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr"] # Object names we want to ignore in lower case
 
