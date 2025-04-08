@@ -164,10 +164,10 @@ def monitor_log(log_file):
                                                 if tmp[0].isalpha() and tmp[1].isalpha():
                                                     first_name = tmp[0].capitalize()
                                             elif len(tmp) == 1:
-                                                if tmp[0].isalpha():
-                                                    first_name = tmp[0].capitalize()
+                                                if speaker.isalnum():
+                                                    first_name = speaker.capitalize()
                                     else:
-                                        print(f"!Ignored: {speaker_part.strip()}")  # Debug print
+                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED {speaker_part.strip()}: {message.strip()}")  # Debug print
 
                                     if first_name:
                                         if last_user != first_name:
@@ -221,15 +221,15 @@ def monitor_log(log_file):
                                             print(f"           {message}")  # Debug print
                                             asyncio.run(speak_text(message))
                             except ValueError:
-                                print(f"Could not parse line: {line}")  # Debug print
+                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] Could not parse line: {line.strip()}")
             time.sleep(1)  # Poll every second
     except KeyboardInterrupt:
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\sl_avatarname\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\SLAvatarNAme\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
-    IgnoreList = ["zcs", "gm", "murr"] # Object names we want to ignore in lower case
+    IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
     if Enable_Spelling_Check:
         import language_tool_python
