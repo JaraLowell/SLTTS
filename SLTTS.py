@@ -179,6 +179,7 @@ def monitor_log(log_file):
                                         if message.startswith("/me"):
                                             message = message[3:].strip()
                                             isemote = True
+                                            isrepat = False
                                         if message.startswith("shouts: "):
                                             message = message[8:].strip()
                                         if message.startswith("whispers: "):
