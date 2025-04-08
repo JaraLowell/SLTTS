@@ -8,7 +8,6 @@ import time
 import pygame
 import regex as re
 from edge_tts import Communicate
-import language_tool_python
 audio_device = None
 
 '''
@@ -27,9 +26,6 @@ audio_device = r"CABLE-B Input (VB-Audio Cable B)"
 # Initialize pygame mixer globally
 pygame.mixer.init(devicename=audio_device)
 pygame.mixer.music.set_volume(0.5)  # Set volume to 50%
-
-# Initialize the LanguageTool instance
-tool = language_tool_python.LanguageTool('en-US')
 
 # Flag to indicate whether audio is currently playing
 is_playing = False
@@ -248,4 +244,10 @@ if __name__ == "__main__":
     log_file_path = r"D:\SecondLife\Logs\nadia_windlow\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr"] # Object names we want to ignore in lower case
+
+    if Enable_Spelling_Check:
+        import language_tool_python
+        # Initialize the LanguageTool instance
+        tool = language_tool_python.LanguageTool('en-US')
+
     monitor_log(log_file_path)
