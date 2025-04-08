@@ -165,8 +165,6 @@ def monitor_log(log_file):
                                             elif len(tmp) == 1:
                                                 if speaker.isalnum():
                                                     first_name = speaker.capitalize()
-                                    else:
-                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {speaker_part.strip()}: {message.strip()}")  # Debug print
 
                                     if first_name:
                                         if last_user != first_name:
@@ -211,7 +209,7 @@ def monitor_log(log_file):
                                             last_chat = time.time()
                                     else:
                                         last_user = None  # Reset last user if no valid name found
-                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED NO NAME! {speaker_part.strip()}: {message.strip()}")  # Debug print
+                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {speaker_part.strip()}: {message.strip()}")  # Debug print
                                 elif last_user != None:
                                     message = line.strip()
                                     message = spell_check_message(message)
