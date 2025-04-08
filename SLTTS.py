@@ -39,9 +39,9 @@ Enable_Spelling_Check = True
 
 def spell_check_message(message):
     global Enable_Spelling_Check
-    """Remove non-alphabetical characters while preserving punctuation and spaces."""
-    # Keep letters (\p{L}), punctuation, and spaces
-    cleaned_message = re.sub(r'[^\p{L}\d\s\p{P}]', '', message, flags=re.UNICODE)
+    """Remove non-alphabetical characters while preserving punctuation, spaces, and mathematical symbols."""
+    # Keep letters (\p{L}), punctuation (\p{P}), spaces (\s), digits (\d), and math symbols
+    cleaned_message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE)
     message = cleaned_message.strip()
 
     """Collapse repeated characters."""
@@ -58,7 +58,10 @@ def spell_check_message(message):
         # Replace URLs with their domain (e.g., https://youtu.be/wgsHF5DTCn8 -> youtu.be)
         message = re.sub(r'https?://(?:www\.)?([^/\s]+).*', r'\1', message)
 
-    """RReplace some common abbreviations."""
+    """Replace hyphen with the word 'minus'."""
+    message = message.replace('-', ' minus ')
+
+    """Replace some common abbreviations."""
     list_slang = {
         "gonna": "going to",
         "gotta": "got to",
