@@ -47,12 +47,12 @@ def spell_check_message(message):
     # Replace common abbreviations
     slang_replacements = {
         "gonna": "going to", "gotta": "got to", "wanna": "want to", "kinda": "kind of",
-        "sorta": "sort of", "shoulda": "should have", "coulda": "could have",
+        "sorta": "sort of", "shoulda": "should have", "coulda": "could have", "tough": "though",
         "woulda": "would have", "gotcha": "got you", "lemme": "let me", "gimme": "give me",
         "brb:": "be right back", "omg": "oh my god", "lol": "laughing out loud",
         "afk": "away from keyboard", "btw": "by the way", "hehe": "laughs", "hihi": "laughs",
-        " rp": " role play", " sl": " Second Life", "ctf": "Capture the Flag",
-        "ooc": "Out of Character", " ic": "In Character"
+        " rp": " role play", " sl": " Second Life", "ctf": "Capture the Flag", "kurrii": "Kurr-rie",
+        "ooc": "Out of Character", " ic": "In Character", "tal ": "Taal ", "gor": "Gor"
     }
     for slang, replacement in slang_replacements.items():
         message = re.sub(rf'\b{slang}\b', replacement, message, flags=re.IGNORECASE)
@@ -227,7 +227,7 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\sl_resident\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\nadia_windlow\chat.txt"
     # log_file_path = r"C:\Users\jara\AppData\Roaming\Radegast\Kenaz Huntress\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr"] # Object names we want to ignore in lower case
