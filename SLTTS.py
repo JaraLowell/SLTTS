@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Needs > pip install edge-tts language_tool_python asyncio regex pygame
+# Needs > pip install edge-tts language_tool_python asyncio regex pygame unicodedata
 import asyncio
 import os
 import time
@@ -9,6 +9,7 @@ import pygame
 import regex as re
 from edge_tts import Communicate
 import gc
+import unicodedata
 
 # Initialize pygame mixer globally
 pygame.mixer.init()
@@ -22,32 +23,32 @@ last_chat = 0
 Enable_Spelling_Check = True
 
 def clean_name(name):
-    # Use regex to detect the script of each character in the name
+    # Lets check if only one language is used in the name
+    # This is a very simple check, but it works for most cases
     script_names = set()
     for char in name:
-        if re.match(r'\p{Script=Latin}', char):
-            script_names.add("Latin")
-        elif re.match(r'\p{Script=Greek}', char):
-            script_names.add("Greek")
-        elif re.match(r'\p{Script=Cyrillic}', char):
-            script_names.add("Cyrillic")
-        elif re.match(r'\p{Script=Han}', char):
-            script_names.add("Han")
-        elif re.match(r'\p{Script=Hiragana}', char):
-            script_names.add("Hiragana")
-        elif re.match(r'\p{Script=Katakana}', char):
-            script_names.add("Katakana")
-        elif re.match(r'\p{Script=Hangul}', char):
-            script_names.add("Hangul")
-        elif re.match(r'\p{Script=Arabic}', char):
-            script_names.add("Arabic")
-        elif re.match(r'\p{Script=Devanagari}', char):
-            script_names.add("Devanagari")
+        try:
+            script_name = unicodedata.name(char)
+        except ValueError:
+            script_name = "Unknown" # Handle characters without a name
+            continue
+
+        if "WITH" in script_name:
+            # Seriously ! ŦorestŞheŨrt is Latin ... but with stroke F, cedilla S and tilde U
+            script_name = script_name.split()[0] + 'Extended'
+        elif "DIGIT" in script_name:
+            # We do want to keep numbers as LATIN, or thay get aded as DIGIT
+            script_name = 'LATIN'
+        else:
+            script_name = script_name.split()[0]
+
+        if script_name not in script_names:
+            script_names.add(script_name)
 
     if len(script_names) == 1:
         return True
-    else:
-        return False
+
+    return False
 
 def spell_check_message(message):
     global Enable_Spelling_Check
@@ -293,7 +294,7 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\ALAvatar.Name\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
