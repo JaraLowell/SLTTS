@@ -61,7 +61,8 @@ def spell_check_message(message):
         "gonna": "going to", "gotta": "got to", "wanna": "want to", "kinda": "kind of",
         "sorta": "sort of", "shoulda": "should have", "coulda": "could have", "tough": "though",
         "woulda": "would have", "gotcha": "got you", "lemme": "let me", "gimme": "give me",
-        "brb": "be right back", "omg": "oh my god", "lol": "laughing out loud",
+        "brb": "be right back", "omg": "oh my god", "lol": "laughing out loud", "sec": "second",
+        "thx": "thanks", "ty": "thank you", "np": "no problem", "idk": "I don't know",
         "afk": "away from keyboard", "btw": "by the way", "hehe": "laughs", "hihi": "laughs",
         " rp": " role play", " sl": " Second Life", "ctf": "Capture the Flag", "kurrii": "Kurr-rie",
         "ooc": "Out of Character", " ic": "In Character", "tal ": "Taal ", "gor": "Gor"
@@ -246,7 +247,7 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\ALAvatar.Name\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
