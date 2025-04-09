@@ -35,8 +35,7 @@ def spell_check_message(message):
                 ")": "Right parenthesis", "[": "Left bracket", "]": "Right bracket", "{": "Left brace", "}": "Right brace",
                 "<": "Less than", ">": "Greater than", "|": "Pipe", "~": "Tilde", "`": "Backtick",
             }
-        if message in symbol_to_word:
-            return symbol_to_word[message]
+        return symbol_to_word.get(message, message) # Return the word for the symbol or the symbol itself
 
     # Remove unwanted characters while preserving letters, punctuation, spaces, digits, and math symbols
     message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE).strip()
@@ -248,7 +247,7 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Namme\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
