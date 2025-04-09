@@ -56,7 +56,7 @@ def spell_check_message(message):
     message = re.sub(r'(?<=\d)-(?=\d|\=)', ' minus ', message)
     message = re.sub(r'(?<=\w)-(?=\w)', ' ', message)
 
-    # Replace common abbreviations v3 slang replacements
+    # Replace common abbreviations v3.1 slang replacements
     slang_replacements = {
         "gonna": "going to", "gotta": "got to", "wanna": "want to", "kinda": "kind of",
         "sorta": "sort of", "shoulda": "should have", "coulda": "could have", "tough": "though",
@@ -64,8 +64,8 @@ def spell_check_message(message):
         "brb": "be right back", "omg": "oh my god", "lol": "laughing out loud", "sec": "second",
         "thx": "thanks", "ty": "thank you", "np": "no problem", "idk": "I don't know",
         "afk": "away from keyboard", "btw": "by the way", "hehe": "laughs", "hihi": "laughs",
-        " rp": " role play", " sl": " Second Life", "ctf": "Capture the Flag", "kurrii": "Kurr-rie",
-        "ooc": "Out of Character", " ic": "In Character", "tal ": "Taal ", "gor": "Gor"
+        "rp": "role play", "sl": "Second Life", "ctf": "Capture the Flag", "kurrii": "Kurr-rie",
+        "ooc": "Out of Character", "ic": "In Character", "tal ": "Taal", "gor": "Gor"
     }
     for slang, replacement in slang_replacements.items():
         message = re.sub(rf'\b{slang}\b', replacement, message, flags=re.IGNORECASE)
@@ -165,26 +165,34 @@ def monitor_log(log_file):
                                     timestamp, rest = line.split(']', 1)
                                     # Get the name
                                     speaker_part, message = rest.split(':', 1)
+                                    speaker_part = speaker_part.strip()
+                                    message = message.strip()
                                     first_name = None
                                     # IgnoreList
-                                    if (speaker_part.strip()).lower() not in IgnoreList:
+                                    if speaker_part.lower() not in IgnoreList:
                                         if '(' in speaker_part and ')' in speaker_part:
                                             # Get legacy name format
                                             speaker = speaker_part.split('(')[1].split(')')[0].strip()  # Extract the part inside parentheses
                                             first_name = speaker.split('.')[0].capitalize()  # Extract the first part before the dot
 
-                                        speaker = speaker_part.strip()
-                                        tmp = speaker.split(' ')
-                                        if speaker == 'Second Life':
+                                        if speaker_part == 'Second Life':
                                             # Ignore Second Life system messages as a name
                                             first_name = None
-                                        elif len(tmp) > 1:
+                                        elif " " in speaker_part:
                                             # Check if the first two parts are alpha numeric
-                                            if tmp[0].isalnum() and tmp[1].isalnum():
-                                                first_name = tmp[0].capitalize()
-                                        elif speaker.isalnum():
+                                            tmp = speaker_part.split(' ')
+                                            salutations = {"lady", "lord", "sir", "miss","ms", "mr", "mrs", "dr", "prof"}  # Add more as needed
+                                            if tmp[0].isalnum():
+                                                if tmp[0].lower() in salutations and len(tmp) > 1 and tmp[1].isalnum():
+                                                    first_name = tmp[1].capitalize()
+                                                else:
+                                                    first_name = tmp[0].capitalize()
+                                        elif speaker_part.isalnum():
                                             # If the name is alpha numeric, use it as the first name
-                                            first_name = speaker.capitalize()
+                                            first_name = speaker_part.capitalize()
+
+                                        # Remove any trailing numbers from the name
+                                        first_name = re.sub(r'(?<!\p{L})\d+$', '', first_name)
 
                                     if first_name:
                                         if last_user != first_name:
@@ -196,8 +204,6 @@ def monitor_log(log_file):
                                             isrepat = False
                                         else:
                                             isrepat = True
-                                        # Get the message part and remove leading/trailing spaces
-                                        message = message.strip()
                                         # if the message starts with "/me", remove it
                                         if message.startswith("/me"):
                                             message = message[3:].strip()
@@ -229,7 +235,7 @@ def monitor_log(log_file):
                                             last_chat = time.time()
                                     else:
                                         last_user = None  # Reset last user if no valid name found
-                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {speaker_part.strip()}: {message.strip()}")  # Debug print
+                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {speaker_part}: {message}")  # Debug print
                                 elif last_user != None:
                                     message = line.strip()
                                     # chech the string length and if it is a number or not
@@ -247,7 +253,7 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\ALAvatar.Name\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
