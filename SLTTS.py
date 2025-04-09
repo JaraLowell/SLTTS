@@ -23,6 +23,20 @@ Enable_Spelling_Check = True
 
 def spell_check_message(message):
     global Enable_Spelling_Check
+    message = message.strip()
+
+    if not message:
+        return ""  # Return empty string if message is empty
+    elif len(message) == 1:
+        symbol_to_word = {
+                "?": "Question mark", "!": "Exclamation mark", ".": "Dot", ",": "Comma", ":": "Colon", ";": "Semicolon",
+                "-": "Dash", "+": "Plus", "=": "Equals", "*": "Asterisk", "/": "Slash", "\\": "Backslash", "@": "At symbol",
+                "#": "Hash", "$": "Dollar sign", "%": "Percent", "^": "Caret", "&": "Ampersand", "(": "Left parenthesis",
+                ")": "Right parenthesis", "[": "Left bracket", "]": "Right bracket", "{": "Left brace", "}": "Right brace",
+                "<": "Less than", ">": "Greater than", "|": "Pipe", "~": "Tilde", "`": "Backtick",
+            }
+        if message in symbol_to_word:
+            return symbol_to_word[message]
 
     # Remove unwanted characters while preserving letters, punctuation, spaces, digits, and math symbols
     message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE).strip()
@@ -141,9 +155,10 @@ def monitor_log(log_file):
                         line = line.strip()
                         if line:
                             # Extract the speaker and message
-                            # Example line format: [timestamp] display name (legacy.name): message
+                            # Expected line format: [timestamp] display name (legacy.name): message
+                            # This works correct for FireStorm and Lindenlabs viewer. Radegast is different and for /me dues not put a : after the namme so breaks emotes
                             try:
-                                if '[' in line and ']' in line:
+                                if line.startswith("[20"):
                                     isemote = False
                                     isrepat = False
                                     # Get tje timestamp and the rest of the line
@@ -162,13 +177,15 @@ def monitor_log(log_file):
                                             speaker = speaker_part.strip()
                                             tmp = speaker.split(' ')
                                             if speaker == 'Second Life':
-                                                first_name = None  # Ignore Second Life system messages as a name
+                                                # Ignore Second Life system messages as a name
+                                                first_name = None
                                             elif len(tmp) > 1:
+                                                # Check if the first two parts are alpha numeric
                                                 if tmp[0].isalnum() and tmp[1].isalnum():
                                                     first_name = tmp[0].capitalize()
-                                            elif len(tmp) == 1:
-                                                if speaker.isalnum():
-                                                    first_name = speaker.capitalize()
+                                            elif speaker.isalnum():
+                                                # If the name is alpha numeric, use it as the first name
+                                                first_name = speaker.capitalize()
 
                                     if first_name:
                                         if last_user != first_name:
@@ -216,6 +233,7 @@ def monitor_log(log_file):
                                         print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {speaker_part.strip()}: {message.strip()}")  # Debug print
                                 elif last_user != None:
                                     message = line.strip()
+                                    # chech the string length and if it is a number or not
                                     message = spell_check_message(message)
                                     if last_message != message and message:
                                         last_message = message
@@ -230,7 +248,7 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\nadia_windlow\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
