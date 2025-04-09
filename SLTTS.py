@@ -168,23 +168,22 @@ def monitor_log(log_file):
                                     # IgnoreList
                                     if (speaker_part.strip()).lower() not in IgnoreList:
                                         if '(' in speaker_part and ')' in speaker_part:
-                                            # Using legacy name format
+                                            # Get legacy name format
                                             speaker = speaker_part.split('(')[1].split(')')[0].strip()  # Extract the part inside parentheses
                                             first_name = speaker.split('.')[0].capitalize()  # Extract the first part before the dot
-                                        else:
-                                            # Using display name format but only if it has 2 words tha are alphabetical
-                                            speaker = speaker_part.strip()
-                                            tmp = speaker.split(' ')
-                                            if speaker == 'Second Life':
-                                                # Ignore Second Life system messages as a name
-                                                first_name = None
-                                            elif len(tmp) > 1:
-                                                # Check if the first two parts are alpha numeric
-                                                if tmp[0].isalnum() and tmp[1].isalnum():
-                                                    first_name = tmp[0].capitalize()
-                                            elif speaker.isalnum():
-                                                # If the name is alpha numeric, use it as the first name
-                                                first_name = speaker.capitalize()
+
+                                        speaker = speaker_part.strip()
+                                        tmp = speaker.split(' ')
+                                        if speaker == 'Second Life':
+                                            # Ignore Second Life system messages as a name
+                                            first_name = None
+                                        elif len(tmp) > 1:
+                                            # Check if the first two parts are alpha numeric
+                                            if tmp[0].isalnum() and tmp[1].isalnum():
+                                                first_name = tmp[0].capitalize()
+                                        elif speaker.isalnum():
+                                            # If the name is alpha numeric, use it as the first name
+                                            first_name = speaker.capitalize()
 
                                     if first_name:
                                         if last_user != first_name:
@@ -247,7 +246,7 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Namme\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
