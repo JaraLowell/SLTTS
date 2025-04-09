@@ -56,7 +56,7 @@ def spell_check_message(message):
     message = re.sub(r'(?<=\d)-(?=\d|\=)', ' minus ', message)
     message = re.sub(r'(?<=\w)-(?=\w)', ' ', message)
 
-    # Replace common abbreviations
+    # Replace common abbreviations v3 slang replacements
     slang_replacements = {
         "gonna": "going to", "gotta": "got to", "wanna": "want to", "kinda": "kind of",
         "sorta": "sort of", "shoulda": "should have", "coulda": "could have", "tough": "though",
