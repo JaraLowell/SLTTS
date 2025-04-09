@@ -21,6 +21,34 @@ last_user = None
 last_chat = 0
 Enable_Spelling_Check = True
 
+def clean_name(name):
+    # Use regex to detect the script of each character in the name
+    script_names = set()
+    for char in name:
+        if re.match(r'\p{Script=Latin}', char):
+            script_names.add("Latin")
+        elif re.match(r'\p{Script=Greek}', char):
+            script_names.add("Greek")
+        elif re.match(r'\p{Script=Cyrillic}', char):
+            script_names.add("Cyrillic")
+        elif re.match(r'\p{Script=Han}', char):
+            script_names.add("Han")
+        elif re.match(r'\p{Script=Hiragana}', char):
+            script_names.add("Hiragana")
+        elif re.match(r'\p{Script=Katakana}', char):
+            script_names.add("Katakana")
+        elif re.match(r'\p{Script=Hangul}', char):
+            script_names.add("Hangul")
+        elif re.match(r'\p{Script=Arabic}', char):
+            script_names.add("Arabic")
+        elif re.match(r'\p{Script=Devanagari}', char):
+            script_names.add("Devanagari")
+
+    if len(script_names) == 1:
+        return True
+    else:
+        return False
+
 def spell_check_message(message):
     global Enable_Spelling_Check
     message = message.strip()
@@ -134,6 +162,7 @@ def monitor_log(log_file):
 
     last_mod_time = os.path.getmtime(log_file)
     last_gc_time = time.time()
+    name_cache = {}
 
     try:
         while True:
@@ -169,30 +198,41 @@ def monitor_log(log_file):
                                     message = message.strip()
                                     first_name = None
                                     # IgnoreList
-                                    if speaker_part.lower() not in IgnoreList:
+                                    if speaker_part in name_cache:
+                                        first_name = name_cache[speaker_part]
+                                    elif speaker_part.lower() not in IgnoreList:
                                         if '(' in speaker_part and ')' in speaker_part:
                                             # Get legacy name format
                                             speaker = speaker_part.split('(')[1].split(')')[0].strip()  # Extract the part inside parentheses
                                             first_name = speaker.split('.')[0].capitalize()  # Extract the first part before the dot
+                                            # Make speaker_part withouth ( and ) and the legacy name
+                                            speaker = speaker_part.split('(')[0].strip()
+                                        else:
+                                            speaker = speaker_part
 
-                                        if speaker_part == 'Second Life':
+                                        if speaker == 'Second Life':
                                             # Ignore Second Life system messages as a name
                                             first_name = None
-                                        elif " " in speaker_part:
+                                        elif " " in speaker:
                                             # Check if the first two parts are alpha numeric
-                                            tmp = speaker_part.split(' ')
+                                            tmp = speaker.split(' ')
                                             salutations = {"lady", "lord", "sir", "miss","ms", "mr", "mrs", "dr", "prof"}  # Add more as needed
-                                            if tmp[0].isalnum():
-                                                if tmp[0].lower() in salutations and len(tmp) > 1 and tmp[1].isalnum():
-                                                    first_name = tmp[1].capitalize()
-                                                else:
+                                            if all(part.isalnum() for part in tmp):
+                                                if tmp[0].lower() in salutations and len(tmp) > 1:
+                                                    if clean_name(tmp[1]):
+                                                        first_name = tmp[1].capitalize()
+                                                elif clean_name(tmp[0]):
                                                     first_name = tmp[0].capitalize()
-                                        elif speaker_part.isalnum():
+                                        elif speaker.isalnum():
                                             # If the name is alpha numeric, use it as the first name
-                                            first_name = speaker_part.capitalize()
+                                            if clean_name(speaker):
+                                                first_name = speaker.capitalize()
 
-                                        # Remove any trailing numbers from the name
-                                        first_name = re.sub(r'(?<!\p{L})\d+$', '', first_name)
+                                        # Letc cache the name for later use
+                                        if first_name:
+                                            # Remove any trailing digits from the first name
+                                            first_name = re.sub(r'(?<!\p{L})\d+$', '', first_name)
+                                            name_cache[speaker_part] = first_name
 
                                     if first_name:
                                         if last_user != first_name:
