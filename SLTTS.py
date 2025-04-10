@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Needs > pip install edge-tts language_tool_python asyncio regex pygame unicodedata
+# Needs > pip install edge-tts language_tool_python asyncio regex pygame
 import asyncio
 import os
 import time
@@ -13,7 +13,7 @@ import unicodedata
 
 # Initialize pygame mixer globally
 pygame.mixer.init()
-pygame.mixer.music.set_volume(0.5)  # Set volume to 50%
+pygame.mixer.music.set_volume(0.10)  # Set volume to 50%
 
 # Flag to indicate whether audio is currently playing
 is_playing = False
@@ -85,7 +85,7 @@ def spell_check_message(message):
     message = re.sub(r'(?<=\d)-(?=\d|\=)', ' minus ', message)
     message = re.sub(r'(?<=\w)-(?=\w)', ' ', message)
 
-    # Replace common abbreviations v3.1 slang replacements
+    # Replace common abbreviations v3.2 slang replacements
     slang_replacements = {
         "gonna": "going to", "gotta": "got to", "wanna": "want to", "kinda": "kind of",
         "sorta": "sort of", "shoulda": "should have", "coulda": "could have", "tough": "though",
@@ -93,8 +93,10 @@ def spell_check_message(message):
         "brb": "be right back", "omg": "oh my god", "lol": "laughing out loud", "sec": "second",
         "thx": "thanks", "ty": "thank you", "np": "no problem", "idk": "I don't know",
         "afk": "away from keyboard", "btw": "by the way", "hehe": "laughs", "hihi": "laughs",
-        "rp": "role play", "sl": "Second Life", "ctf": "Capture the Flag", "kurrii": "Kurr-rie",
-        "ooc": "Out of Character", "ic": "In Character", "tal ": "Taal", "gor": "Gor"
+        "rp": "role play", "sl": "Second Life", "ctf": "capture the flag", "kurrii": "kurr-rie",
+        "ooc": "out of character", "ic": "in character", "tal": "Taal-", "gor": "Gor",
+        "wb": "welcome back", "omw": "on my way", ":3": "kitty face", "rl": "real life",
+        "imo": "in my opinion", "imho": "in my humble opinion", "smh": "shaking my head"
     }
     for slang, replacement in slang_replacements.items():
         message = re.sub(rf'\b{slang}\b', replacement, message, flags=re.IGNORECASE)
@@ -113,7 +115,7 @@ def spell_check_message(message):
         for exception in exceptions:
             message = re.sub(rf'\b{exception.lower()}\b', exception, message, flags=re.IGNORECASE)
 
-    return message
+    return message.capitalize()
 
 async def speak_text(text2say):
     """Use Edge TTS to speak the given text."""
@@ -294,7 +296,7 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\ALAvatar.Name\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\nadia_windlow\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
     IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
 
