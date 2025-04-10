@@ -296,9 +296,9 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Namme\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
-    IgnoreList = ["zcs", "gm", "murr"] # Object names we want to ignore in lower case
+    IgnoreList = ["zcs", "gm", "murr", "dina", "mama-allpa (f) v3.71"] # Object names we want to ignore in lower case
 
     if Enable_Spelling_Check:
         import language_tool_python
