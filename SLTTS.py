@@ -13,7 +13,7 @@ import unicodedata
 
 # Initialize pygame mixer globally
 pygame.mixer.init()
-pygame.mixer.music.set_volume(0.10)  # Set volume to 50%
+pygame.mixer.music.set_volume(0.50)  # Set volume to 50%
 
 # Flag to indicate whether audio is currently playing
 is_playing = False
@@ -296,9 +296,9 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\nadia_windlow\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Namme\chat.txt"
     Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
-    IgnoreList = ["zcs", "gm", "murr", "dina"] # Object names we want to ignore in lower case
+    IgnoreList = ["zcs", "gm", "murr"] # Object names we want to ignore in lower case
 
     if Enable_Spelling_Check:
         import language_tool_python
