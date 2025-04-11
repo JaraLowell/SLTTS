@@ -1,0 +1,11 @@
+LoraLog.spec
+build/
+dist/
+DataBase/
+env/
+venv/
+*.spec
+*.psd
+tkintermapview2/__pycache__/
+*.log
+*.mp3
