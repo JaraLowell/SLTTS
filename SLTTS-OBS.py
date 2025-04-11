@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Needs > pip install edge-tts language_tool_python asyncio regex pygame aiohttp html
+# Needs > pip install edge-tts language_tool_python asyncio regex pygame
 import asyncio
 import os
 import time
@@ -119,7 +119,7 @@ def spell_check_message(message):
         for exception in exceptions:
             message = re.sub(rf'\b{exception.lower()}\b', exception, message, flags=re.IGNORECASE)
 
-    return message.capitalize()
+    return message
 
 async def speak_text(text2say):
     """Use Edge TTS to speak the given text."""
@@ -254,12 +254,13 @@ async def chat_page_handler(request):
             .chat-line {
                 animation: fadeout 20s forwards;
                 background-color: rgba(0, 0, 0, 0.72); /* 50% transparent black background */
-                border-radius: 6px; /* Rounded corners */
-                padding: 5px; /* Padding inside the box */
-                margin-bottom: 3px; /* Space between chat lines */
+                border-radius: 4px; /* Rounded corners */
+                padding: 2px; /* Padding inside the box */
+                padding-left: 8px; /* Padding inside the box */
+                margin-bottom: 2px; /* Space between chat lines */
                 color: white; /* Text color */
                 display: inline-block; /* Make the box wrap around the text */
-                max-width: 50%; /* Optional: Limit the width of the box to 80% of the container */
+                max-width: 45%; /* Optional: Limit the width of the box to 80% of the container */
                 word-wrap: break-word; /* Ensure long words or URLs wrap to the next line */
             }
             @keyframes fadeout {
@@ -441,8 +442,11 @@ async def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\nadia_windlow\chat.txt"
+    # The location of your Second Life Log File
+    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
+    # Enable or Disbale Spell(grammer) checking. MMight not always have the results we want.
     Enable_Spelling_Check = False
+    # List of names that should not be spoken. Huds, or objects in world. Or namme the object in world like object' so there a non ascii character at the end
     IgnoreList = ["zcs", "gm", "murr", "dina", "mama-allpa (f) v3.71"]
 
     if Enable_Spelling_Check:
