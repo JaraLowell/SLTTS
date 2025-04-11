@@ -1,5 +1,5 @@
 # SLTTS
-Grab the second life chat log and turns it to Edge TTS
+Grab the second life chat log and turns it to Edge TTS Voice near live unless it a realy realy big chat line, then can take a second or two.
 By Jaralowell
 
 # Build in Python v3.10.10
@@ -7,10 +7,11 @@ By Jaralowell
 
 Make sure to pip install the needed libraries:
 * edge-tts 
-* language_tool_python
+* language_tool_python (if you wish to use the grammer/spell check library)
 * asyncio
 * regex
 * pygame
+* aiohttp (if you wish to use the OBS (html web output) version)
 
 Then edit line 180, to reflect where your chat.log file is located.
 * log_file_path = r"D:\SecondLife\Logs\sl_resident\chat.txt"
