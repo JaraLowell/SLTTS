@@ -410,14 +410,18 @@ async def monitor_log(log_file):
                                             last_message = message
                                             if isrepat:
                                                 to_speak = f"{message}"
+                                                to_cc = f"{first_name}: {message}"
                                                 print(f"           {message}")
                                             elif isemote:
                                                 to_speak = f"{first_name} {message}"
+                                                to_cc = f"{first_name} {message}"
                                                 print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
                                             else:
                                                 to_speak = f"{first_name} says: {message}"
+                                                to_cc = f"{first_name}: {message}"
                                                 print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
-                                            await update_chat(first_name + ': ' + message)
+
+                                            await update_chat(to_cc)
                                             await speak_text(to_speak)
                                             last_chat = time.time()
                                     else:
@@ -429,7 +433,7 @@ async def monitor_log(log_file):
                                     if last_message != message and message:
                                         last_message = message
                                         print(f"           {message}")
-                                        await update_chat(last_user + ': ' + message)
+                                        await update_chat(last_user + ' ' + message)
                                         await speak_text(message)
                                 else:
                                     print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED No Timestamp!: {line.strip()}")
