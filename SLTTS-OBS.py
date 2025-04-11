@@ -98,8 +98,8 @@ def spell_check_message(message):
         "thx": "thanks", "ty": "thank you", "np": "no problem", "idk": "I don't know",
         "afk": "away from keyboard", "btw": "by the way", "hehe": "laughs", "hihi": "laughs",
         "rp": "role play", "sl": "Second Life", "ctf": "capture the flag", "kurrii": "kurr-rie",
-        "ooc": "out of character", "ic": "in character", "tal": "Taal-", "gor": "Gor",
-        "wb": "welcome back", "omw": "on my way", ":3": "kitty face", "rl": "real life",
+        "ooc": "out of character", "ic": "in character", "tal": "Tal.", "gor": "Gor",
+        "wb": "welcome back", "omw": "on my way", " :3": " kitty face", "rl": "real life",
         "imo": "in my opinion", "imho": "in my humble opinion", "smh": "shaking my head"
     }
     for slang, replacement in slang_replacements.items():
@@ -137,7 +137,8 @@ async def speak_text(text2say):
         # options are: Female en-US-AvaMultilingualNeural or en-US-EmmaMultilingualNeural
         #              Male   en-US-AndrewMultilingualNeural or en-US-BrianMultilingualNeural
         try:
-            await Communicate(text = text2say, voice='en-US-EmmaMultilingualNeural', rate = '+8%', pitch = '+0Hz').save(output_file)
+            # await Communicate(text = text2say, voice='en-US-EmmaMultilingualNeural', rate = '+8%', pitch = '+0Hz').save(output_file)
+            await Communicate(text = text2say, voice='en-IE-EmilyNeural', rate = '+12%', pitch = '-4Hz').save(output_file)
         except Exception as e:
             print(f"Error generating audio: {e}")
             return
@@ -259,7 +260,7 @@ async def chat_page_handler(request):
                 display: inline-block; /* Make the box wrap around the text */
                 max-width: 45%; /* Optional: Limit the width of the box to 80% of the container */
                 word-wrap: break-word; /* Ensure long words or URLs wrap to the next line */
-                text-shadow: 1px 1px 2px #000000, 0 0 1em #000000, 0 0 0.2em #000000;
+                text-shadow: -1px -1px 0 #00000080, 1px -1px 0 #00000080, -1px 1px 0 #00000080, 1px 1px 0 #00000080, 1px 1px 1px #000000, 0 0 1em #000000, 0 0 0.2em #000000;
             }
             @keyframes fadeout {
                 0% { opacity: 1; } /* Fully visible */
@@ -276,16 +277,18 @@ async def chat_page_handler(request):
                 eventSource.onmessage = function(event) {
                     const newMessages = document.createElement('div');
                     newMessages.innerHTML = event.data;
-
                     Array.from(newMessages.children).forEach(child => {
+                        const messageLength = child.textContent.length;
+                        const fadeoutDuration = Math.min(60, Math.max(20, messageLength / 5));
+                        child.style.animation = `fadeout ${fadeoutDuration}s forwards`;
+                        child.addEventListener('animationend', () => {
+                            chatContainer.removeChild(child);
+                        });
                         chatContainer.appendChild(child);
-
-                        // Remove old messages to keep only the last 20
                         if (chatContainer.children.length > 20) {
                             chatContainer.removeChild(chatContainer.firstChild);
                         }
                     });
-
                     chatContainer.scrollTop = chatContainer.scrollHeight;
                 };
                 eventSource.onerror = function() {
