@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Needs > pip install edge-tts language_tool_python asyncio regex pygame
+# Needs > pip install edge-tts language_tool_python asyncio regex pygame aiohttp html
 import asyncio
 import os
 import time
@@ -12,8 +12,8 @@ import gc
 import unicodedata
 
 from aiohttp import web
-import asyncio
 from datetime import datetime
+import html
 
 # Initialize pygame mixer globally
 pygame.mixer.init()
@@ -170,9 +170,6 @@ async def update_chat(message):
         "added_time": time.time()  # Track when the message was added
     })
 
-    # Keep only the last 20 messages
-    if len(chat_messages) > 20:
-        chat_messages.pop(0)
 
 async def sse_handler(request):
     """Handle Server-Sent Events for real-time chat updates."""
@@ -188,22 +185,19 @@ async def sse_handler(request):
     )
     await response.prepare(request)
 
-    last_sent_index = 0  # Track the index of the last sent message
-
     try:
         while True:
             await asyncio.sleep(0.5)  # Check for updates every 0.5 seconds
-
             # Send only new messages to the client
-            if last_sent_index < len(chat_messages):
-                new_messages = chat_messages[last_sent_index:]
+            if chat_messages:
+                new_messages = chat_messages[:]
                 messages_html = "".join(
-                    f"<div class='chat-line'>{msg['message']}</div>"
+                    f"<div class='chat-line'>{html.escape(msg['message'])}</div>"
                     for msg in new_messages
                 )
                 try:
                     await response.write(f"data: {messages_html}\n\n".encode('utf-8'))
-                    last_sent_index = len(chat_messages)  # Update the last sent index
+                    chat_messages.clear()  # Clear the sent messages
                 except (ConnectionResetError, asyncio.CancelledError):
                     print("Client disconnected. Stopping SSE stream.")
                     break  # Exit the loop if the client disconnects
