@@ -17,7 +17,7 @@ import html
 
 # Initialize pygame mixer globally
 pygame.mixer.init()
-pygame.mixer.music.set_volume(0.50)  # Set volume to 50%
+pygame.mixer.music.set_volume(0.75)  # Set volume to 50%
 
 # Flag to indicate whether audio is currently playing
 is_playing = False
@@ -173,7 +173,7 @@ async def update_chat(message):
 
 async def sse_handler(request):
     """Handle Server-Sent Events for real-time chat updates."""
-    print("Client connected to SSE.")
+    print(f"Client connected to SSE from {request.remote}")
     response = web.StreamResponse(
         status=200,
         reason='OK',
@@ -199,25 +199,25 @@ async def sse_handler(request):
                     await response.write(f"data: {messages_html}\n\n".encode('utf-8'))
                     chat_messages.clear()  # Clear the sent messages
                 except (ConnectionResetError, asyncio.CancelledError):
-                    print("Client disconnected. Stopping SSE stream.")
+                    print("Client disconnected.")
                     break  # Exit the loop if the client disconnects
 
             # Send a keep-alive message every 5 seconds
             try:
                 await response.write(":\n\n".encode('utf-8'))
             except (ConnectionResetError, asyncio.CancelledError):
-                print("Client disconnected. Stopping SSE stream.")
+                print("Client disconnected.")
                 break
 
     except asyncio.CancelledError:
         print("SSE handler task was cancelled.")
     finally:
-        print("SSE connection closed.")
         try:
             await response.write_eof()
         except ConnectionResetError:
-            print("Connection already closed, skipping write_eof.")
+            pass
 
+    # Close the response stream
     return response
 
 async def chat_page_handler(request):
@@ -232,7 +232,7 @@ async def chat_page_handler(request):
         <style>
             body {
                 font-family: Ubuntu, sans-serif;
-                font-size: 18px;
+                font-size: 19px;
                 background-color: rgba(0, 0, 0, 0);
                 color: white;
                 margin: 0;
@@ -253,15 +253,13 @@ async def chat_page_handler(request):
             }
             .chat-line {
                 animation: fadeout 20s forwards;
-                background-color: rgba(0, 0, 0, 0.72); /* 50% transparent black background */
-                border-radius: 4px; /* Rounded corners */
-                padding: 2px; /* Padding inside the box */
                 padding-left: 8px; /* Padding inside the box */
                 margin-bottom: 2px; /* Space between chat lines */
                 color: white; /* Text color */
                 display: inline-block; /* Make the box wrap around the text */
                 max-width: 45%; /* Optional: Limit the width of the box to 80% of the container */
                 word-wrap: break-word; /* Ensure long words or URLs wrap to the next line */
+                text-shadow: 1px 1px 2px #000000, 0 0 1em #000000, 0 0 0.2em #000000;
             }
             @keyframes fadeout {
                 0% { opacity: 1; } /* Fully visible */
@@ -443,7 +441,7 @@ async def monitor_log(log_file):
 
 if __name__ == "__main__":
     # The location of your Second Life Log File
-    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
+    log_file_path = r"D:\SecondLife\Logs\nadia_windlow\chat.txt"
     # Enable or Disbale Spell(grammer) checking. MMight not always have the results we want.
     Enable_Spelling_Check = False
     # List of names that should not be spoken. Huds, or objects in world. Or namme the object in world like object' so there a non ascii character at the end
