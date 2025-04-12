@@ -67,16 +67,17 @@ def spell_check_message(message):
         return symbol_to_word.get(message, message) # Return the word for the symbol or the symbol itself
 
     # Remove unwanted characters while preserving letters, punctuation, spaces, digits, and math symbols
-    message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE).strip()
+    message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE)  # Remove unsupported characters
+    message = re.sub(r'\s+', ' ', message).strip()  # Replace multiple spaces with a single space
 
     # Simplify Second Life map URLs
     message = re.sub(r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+', lambda match: match.group(1).replace('%20', ' '), message)
 
     # Replace Second Life agent or group links with "Second Life Link"
-    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/about', r'\1 link', message)
+    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/about', lambda m: f"{m.group(1).capitalize()} Link", message)
 
     # Simplify general URLs to their domain
-    message = re.sub(r'https?://(?:www\.)?([^/\s]+).*', r'\1 link', message)
+    message = re.sub(r'(https?://(?:www\.)?([^/\s]+)[^\s]*)', r'\2 link', message)
 
     # Collapse repeated characters (3 or more)
     message = re.sub(r'(.)\1{2,}', r'\1', message)
@@ -94,8 +95,8 @@ def spell_check_message(message):
         "thx": "thanks", "ty": "thank you", "np": "no problem", "idk": "I don't know",
         "afk": "away from keyboard", "btw": "by the way", "hehe": "laughs", "hihi": "laughs",
         "rp": "role play", "sl": "Second Life", "ctf": "capture the flag", "kurrii": "kurr-rie",
-        "ooc": "out of character", "ic": "in character", "tal": "Taal-", "gor": "Gor",
-        "wb": "welcome back", "omw": "on my way", ":3": "kitty face", "rl": "real life",
+        "ooc": "out of character", "ic": "in character", "tal": "Tal.", "gor": "Gor",
+        "wb": "welcome back", "omw": "on my way", " :3": " kitty face", "rl": "real life",
         "imo": "in my opinion", "imho": "in my humble opinion", "smh": "shaking my head"
     }
     for slang, replacement in slang_replacements.items():
@@ -115,7 +116,10 @@ def spell_check_message(message):
         for exception in exceptions:
             message = re.sub(rf'\b{exception.lower()}\b', exception, message, flags=re.IGNORECASE)
 
-    return message.capitalize()
+    if len(message) > 4:
+        message = message[0].upper() + message[1:]
+
+    return message
 
 async def speak_text(text2say):
     """Use Edge TTS to speak the given text."""

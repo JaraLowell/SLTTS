@@ -71,16 +71,17 @@ def spell_check_message(message):
         return symbol_to_word.get(message, message) # Return the word for the symbol or the symbol itself
 
     # Remove unwanted characters while preserving letters, punctuation, spaces, digits, and math symbols
-    message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE).strip()
+    message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE)  # Remove unsupported characters
+    message = re.sub(r'\s+', ' ', message).strip()  # Replace multiple spaces with a single space
 
     # Simplify Second Life map URLs
     message = re.sub(r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+', lambda match: match.group(1).replace('%20', ' '), message)
 
     # Replace Second Life agent or group links with "Second Life Link"
-    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/about', r'\1 link', message)
+    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/about', lambda m: f"{m.group(1).capitalize()} Link", message)
 
     # Simplify general URLs to their domain
-    message = re.sub(r'https?://(?:www\.)?([^/\s]+).*', r'\1 link', message)
+    message = re.sub(r'(https?://(?:www\.)?([^/\s]+)[^\s]*)', r'\2 link', message)
 
     # Collapse repeated characters (3 or more)
     message = re.sub(r'(.)\1{2,}', r'\1', message)
@@ -319,7 +320,7 @@ async def start_server():
 async def monitor_log(log_file):
     print("Monitoring log file... Press Ctrl+C to stop.")
     await speak_text("Starting up! Monitoring log file...")
-    global last_message, last_user, IgnoreList, last_chat
+    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered
 
     # Start at the end of the file
     last_position = 0
@@ -361,6 +362,7 @@ async def monitor_log(log_file):
                                     speaker_part, message = rest.split(':', 1)
                                     speaker_part = speaker_part.strip()
                                     message = message.strip()
+                                    messageorg = message
                                     first_name = None
                                     # IgnoreList
                                     if speaker_part in name_cache:
@@ -402,12 +404,15 @@ async def monitor_log(log_file):
                                             isrepat = True
                                         if message.startswith("/me"):
                                             message = message[3:].strip()
+                                            messageorg = messageorg[3:].strip()
                                             isemote = True
                                             isrepat = False
                                         if message.startswith("shouts: "):
                                             message = message[8:].strip()
+                                            messageorg = messageorg[8:].strip()
                                         if message.startswith("whispers: "):
                                             message = message[10:].strip()
+                                            messageorg = messageorg[10:].strip()
                                         message = spell_check_message(message)
 
                                         if last_message == message:
@@ -417,15 +422,15 @@ async def monitor_log(log_file):
                                             last_message = message
                                             if isrepat:
                                                 to_speak = f"{message}"
-                                                to_cc = f"{first_name}: {message}"
+                                                to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
                                                 print(f"           {message}")
                                             elif isemote:
                                                 to_speak = f"{first_name} {message}"
-                                                to_cc = f"{first_name} {message}"
+                                                to_cc = f"{first_name} {message}" if OBSChatFiltered else f"{first_name} {messageorg}"
                                                 print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
                                             else:
                                                 to_speak = f"{first_name} says: {message}"
-                                                to_cc = f"{first_name}: {message}"
+                                                to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
                                                 print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
 
                                             await update_chat(to_cc)
@@ -457,6 +462,8 @@ if __name__ == "__main__":
     Enable_Spelling_Check = False
     # List of names that should not be spoken. Huds, or objects in world. Or namme the object in world like object' so there a non ascii character at the end
     IgnoreList = ["zcs", "gm", "murr", "dina", "mama-allpa (f) v3.71"]
+    # Pass the original chat to obs or the adjusrted one
+    OBSChatFiltered = True
 
     if Enable_Spelling_Check:
         import language_tool_python
