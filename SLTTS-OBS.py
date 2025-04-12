@@ -119,6 +119,9 @@ def spell_check_message(message):
         for exception in exceptions:
             message = re.sub(rf'\b{exception.lower()}\b', exception, message, flags=re.IGNORECASE)
 
+    if len(message) > 4:
+        message = message[0].upper() + message[1:]
+
     return message
 
 async def speak_text(text2say):
@@ -261,6 +264,7 @@ async def chat_page_handler(request):
                 max-width: 45%; /* Optional: Limit the width of the box to 80% of the container */
                 word-wrap: break-word; /* Ensure long words or URLs wrap to the next line */
                 text-shadow: -1px -1px 0 #00000080, 1px -1px 0 #00000080, -1px 1px 0 #00000080, 1px 1px 0 #00000080, 1px 1px 1px #000000, 0 0 1em #000000, 0 0 0.2em #000000;
+                transition: transform 0.5s ease, opacity 0.5s ease;
             }
             @keyframes fadeout {
                 0% { opacity: 1; } /* Fully visible */
@@ -279,7 +283,7 @@ async def chat_page_handler(request):
                     newMessages.innerHTML = event.data;
                     Array.from(newMessages.children).forEach(child => {
                         const messageLength = child.textContent.length;
-                        const fadeoutDuration = Math.min(60, Math.max(20, messageLength / 5));
+                        const fadeoutDuration = Math.min(60, Math.max(15, messageLength / 9));
                         child.style.animation = `fadeout ${fadeoutDuration}s forwards`;
                         child.addEventListener('animationend', () => {
                             chatContainer.removeChild(child);
@@ -459,5 +463,17 @@ if __name__ == "__main__":
         tool = language_tool_python.LanguageTool('en-US')
 
     loop = asyncio.get_event_loop()
-    loop.create_task(start_server())
-    loop.run_until_complete(monitor_log(log_file_path))
+    try:
+        # Start the server and monitor log tasks
+        loop.create_task(start_server())
+        loop.run_until_complete(monitor_log(log_file_path))
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt received. Shutting down...")
+    finally:
+        # Cancel all running tasks and close the loop
+        tasks = asyncio.all_tasks(loop)
+        for task in tasks:
+            task.cancel()
+        loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+        loop.close()
+        print("Event loop closed.")
