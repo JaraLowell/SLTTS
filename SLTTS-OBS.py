@@ -14,7 +14,7 @@ from configparser import ConfigParser
 from aiohttp import web
 from datetime import datetime
 import html
-
+import json
 from PyQt5.QtWidgets import QApplication
 from PyQt5 import QtCore
 import sys
@@ -62,7 +62,7 @@ def clean_name(name):
     return False
 
 def spell_check_message(message):
-    global Enable_Spelling_Check, tool
+    global Enable_Spelling_Check, tool, slang_replacements
     message = message.strip()
 
     if not message:
@@ -98,18 +98,6 @@ def spell_check_message(message):
     message = re.sub(r'(?<=\w)-(?=\w)', ' ', message)
 
     # Replace common abbreviations v3.2 slang replacements
-    slang_replacements = {
-        "gonna": "going to", "gotta": "got to", "wanna": "want to", "kinda": "kind of",
-        "sorta": "sort of", "shoulda": "should have", "coulda": "could have", "tough": "though",
-        "woulda": "would have", "gotcha": "got you", "lemme": "let me", "gimme": "give me",
-        "brb": "be right back", "omg": "oh my god", "lol": "laughing out loud", "sec": "second",
-        "thx": "thanks", "ty": "thank you", "np": "no problem", "idk": "I don't know",
-        "afk": "away from keyboard", "btw": "by the way", "hehe": "laughs", "hihi": "laughs",
-        "rp": "role play", "sl": "Second Life", "ctf": "capture the flag", "kurrii": "kurr-rie",
-        "ooc": "out of character", "ic": "in character", "tal": "Tal.", "gor": "Gor",
-        "wb": "welcome back", "omw": "on my way", " :3": " kitty face", "rl": "real life",
-        "imo": "in my opinion", "imho": "in my humble opinion", "smh": "shaking my head"
-    }
     for slang, replacement in slang_replacements.items():
         message = re.sub(rf'\b{slang}\b', replacement, message, flags=re.IGNORECASE)
 
@@ -171,7 +159,6 @@ async def speak_text(text2say):
         output_file = "output.mp3"
         try:
             await Communicate(text = text2say, voice=EdgeVoice, rate = '+8%', pitch = '+0Hz').save(output_file)
-            # await Communicate(text = text2say, voice='en-IE-EmilyNeural', rate = '+12%', pitch = '-4Hz').save(output_file)
         except Exception as e:
             print(f"Error generating audio: {e}")
             return
@@ -495,13 +482,25 @@ def update_volume(value):
     """Update the volume setting."""
     pygame.mixer.music.set_volume(value / 100)
 
+def load_slang_replacements(file_path="slangreplce.json"):
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as file:
+            try:
+                return json.load(file)
+            except json.JSONDecodeError as e:
+                print(f"Error loading slang replacements: {e}")
+                return {}
+    else:
+        print(f"Slang replacements file not found: {file_path}")
+        return {}
+
 # Override the print function to append to window.text_display
 original_print = print  # Keep a reference to the original print function
 def custom_print(*args, **kwargs):
     message = " ".join(map(str, args))  # Combine all arguments into a single string
     if 'window' in globals() and hasattr(window, 'text_display'):
         window.update_display(message)  # Append the message to the text_display widget
-    original_print(*args, **kwargs)  # Optionally, call the original print function
+    # original_print(*args, **kwargs)  # Optionally, call the original print function
 
 # Replace the built-in print function with the custom one
 builtins.print = custom_print
@@ -573,12 +572,16 @@ if __name__ == "__main__":
 
     def start_monitoring_ui():
         """Start monitoring from the UI."""
-        global chat_messages
-        chat_messages.clear()
+        global chat_messages, slang_replacements
         log_file_path = window.log_file_path_input.text()  # Get the log file path from the input field
-        start_monitoring(log_file_path)
-        window.start_button.setText("Stop Log Reading")
-        window.start_button.setStyleSheet("color: #e67a7f;")
+        if os.path.exists(log_file_path):
+            slang_replacements = load_slang_replacements()
+            chat_messages.clear()
+            start_monitoring(log_file_path)
+            window.start_button.setText("Stop Log Reading")
+            window.start_button.setStyleSheet("color: #e67a7f;")
+        else:
+            print(f"Log file not found: {log_file_path}")
 
     def stop_monitoring_ui():
         """Stop monitoring from the UI."""
@@ -611,7 +614,7 @@ if __name__ == "__main__":
 
     # Show the UI window
     window.show()
-    print("Second Life Chat log to Speech version 1.0Beta by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.1 Beta by Jara Lowell")
 
     # Start the PyQt5 application event loop
     sys.exit(app.exec_())

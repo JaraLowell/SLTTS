@@ -13,6 +13,7 @@ class MainWindow(QtWidgets.QWidget):
         super().__init__()
         self.global_config = global_config  # Use the global configuration object
         self.setWindowTitle("Second Life TTS")
+        self.setWindowIcon(QtGui.QIcon("icon.png"))
         geometry = self.global_config.get('Settings', 'window_geometry', fallback=None)
         if geometry:
             self.restoreGeometry(QtCore.QByteArray.fromHex(geometry.encode('utf-8')))
