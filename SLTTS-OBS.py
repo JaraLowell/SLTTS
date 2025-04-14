@@ -15,6 +15,13 @@ from aiohttp import web
 from datetime import datetime
 import html
 
+from PyQt5.QtWidgets import QApplication
+from PyQt5 import QtCore
+import sys
+from SLTTSUI import MainWindow
+import threading
+import builtins
+
 # Initialize pygame mixer globally
 pygame.mixer.init()
 pygame.mixer.music.set_volume(0.75)  # Set volume to 50%
@@ -24,7 +31,7 @@ is_playing = False
 last_message = None
 last_user = None
 last_chat = 0
-Enable_Spelling_Check = True
+tool = None
 
 def clean_name(name):
     # Lets check if only one language is used in the name
@@ -55,7 +62,7 @@ def clean_name(name):
     return False
 
 def spell_check_message(message):
-    global Enable_Spelling_Check
+    global Enable_Spelling_Check, tool
     message = message.strip()
 
     if not message:
@@ -108,6 +115,13 @@ def spell_check_message(message):
 
     # Perform spelling check if enabled
     if Enable_Spelling_Check:
+        if tool is None:  # Check if 'tool' is already initialized
+            try:
+                import language_tool_python
+                tool = language_tool_python.LanguageTool('en-US')
+            except ImportError as e:
+                print(f"Error importing language_tool_python: {e}")
+
         exceptions = {"Gor", "Kurrii", "Tal", "Gorean"}
         matches = tool.check(message)
         filtered_matches = [
@@ -329,11 +343,10 @@ async def start_server():
     await runner.setup()
     site = web.TCPSite(runner, 'localhost', 8080)
     await site.start()
-    print("Server started at http://localhost:8080 Use this URL in OBS via a browser source.")
+    print("OBS Page service started on http://localhost:8080 Use this URL in OBS via a browser source.")
 
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
-    print("Monitoring log file... Press Ctrl+C to stop.")
     await speak_text("Starting up! Monitoring log file...")
     global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered
 
@@ -343,6 +356,9 @@ async def monitor_log(log_file):
         with open(log_file, 'r', encoding='utf-8') as file:
             file.seek(0, os.SEEK_END)
             last_position = file.tell()
+    else:
+        print(f"Log file not found: {log_file}")
+        return
 
     last_mod_time = os.path.getmtime(log_file)
     last_gc_time = time.time()
@@ -470,37 +486,132 @@ async def monitor_log(log_file):
     except KeyboardInterrupt:
         print("Stopped monitoring.")
 
+def update_global(variable_name, value):
+    """Update a global variable dynamically."""
+    globals()[variable_name] = value
+    original_print(f"Updated global {variable_name} to {value}")
+
+def update_volume(value):
+    """Update the volume setting."""
+    pygame.mixer.music.set_volume(value / 100)
+
+# Override the print function to append to window.text_display
+original_print = print  # Keep a reference to the original print function
+def custom_print(*args, **kwargs):
+    message = " ".join(map(str, args))  # Combine all arguments into a single string
+    if 'window' in globals() and hasattr(window, 'text_display'):
+        window.update_display(message)  # Append the message to the text_display widget
+    original_print(*args, **kwargs)  # Optionally, call the original print function
+
+# Replace the built-in print function with the custom one
+builtins.print = custom_print
+
+def run_server_in_background():
+    """Run the server as a background daemon."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.create_task(start_server())
+    threading.Thread(target=loop.run_forever, daemon=True).start()
+    print("Server is running in the background.")
+
+def start_monitoring(log_file_path):
+    """Start the monitor_log task."""
+    global monitor_task, monitor_loop
+
+    if monitor_task is not None:
+        print("Log monitoring is already running.")
+        return
+
+    monitor_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(monitor_loop)
+
+    monitor_task = monitor_loop.create_task(monitor_log(log_file_path))
+    threading.Thread(target=monitor_loop.run_forever, daemon=True).start()
+    print(f"Started monitoring log file: {log_file_path}")
+
+def stop_monitoring():
+    """Stop the monitor_log task."""
+    global monitor_task, monitor_loop
+
+    if monitor_task is None:
+        print("Log monitoring is not running.")
+        return
+
+    monitor_task.cancel()  # Cancel the task
+    monitor_task = None
+
+    if monitor_loop is not None:
+        monitor_loop.stop()  # Stop the event loop
+        monitor_loop = None
+
+    print("Stopped monitoring log file.")
+
 if __name__ == "__main__":
     if create_default_config('config.ini'):
         print("Default config.ini created. Please edit it with your settings.")
-        exit(0)
+        sys.exit(0)
 
     config = ConfigParser()
     config.read('config.ini')
 
     # Parse configuration values
+    global Enable_Spelling_Check, IgnoreList, OBSChatFiltered, EdgeVoice
     log_file_path = config.get('Settings', 'log_file_path')
     Enable_Spelling_Check = config.getboolean('Settings', 'enable_spelling_check')
     IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list').split(',')]
     OBSChatFiltered = config.getboolean('Settings', 'obs_chat_filtered')
     EdgeVoice = config.get('Settings', 'edge_tts_llm')
 
-    if Enable_Spelling_Check:
-        import language_tool_python
-        tool = language_tool_python.LanguageTool('en-US')
+    app = QApplication(sys.argv)
+    window = MainWindow(config)
 
-    loop = asyncio.get_event_loop()
-    try:
-        # Start the server and monitor log tasks
-        loop.create_task(start_server())
-        loop.run_until_complete(monitor_log(log_file_path))
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt received. Shutting down...")
-    finally:
-        # Cancel all running tasks and close the loop
-        tasks = asyncio.all_tasks(loop)
-        for task in tasks:
-            task.cancel()
-        loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
-        loop.close()
-        print("Event loop closed.")
+    # Connect the UI's start button to start the log monitoring
+    loop = None
+    tasks = []
+    monitor_task = None
+    monitor_loop = None
+
+    def start_monitoring_ui():
+        """Start monitoring from the UI."""
+        global chat_messages
+        chat_messages.clear()
+        log_file_path = window.log_file_path_input.text()  # Get the log file path from the input field
+        start_monitoring(log_file_path)
+        window.start_button.setText("Stop Log Reading")
+        window.start_button.setStyleSheet("color: #e67a7f;")
+
+    def stop_monitoring_ui():
+        """Stop monitoring from the UI."""
+        global chat_messages
+        chat_messages.clear()
+        stop_monitoring()
+        window.start_button.setText("Start Log Reading")
+        window.start_button.setStyleSheet("color: #9d9d9d;")
+
+    def toggle_monitoring():
+        """Toggle monitoring based on the button state."""
+        if window.start_button.text() == "Start Log Reading":
+            start_monitoring_ui()
+        else:
+            stop_monitoring_ui()
+
+    # Connect the UI buttons to the respective functions
+    window.start_button.clicked.connect(toggle_monitoring)
+    window.spelling_check_toggled.connect(lambda value: update_global("Enable_Spelling_Check", value))
+    window.obs_filter_toggled.connect(lambda value: update_global("OBSChatFiltered", value))
+    window.ignore_list_updated.connect(lambda value: update_global("IgnoreList", value))
+
+    window.log_file_path_input.textChanged.connect(lambda value: update_global("log_file_path", value))
+    window.EdgeVoice_input.textChanged.connect(lambda value: update_global("EdgeVoice", value))
+
+    window.volume_changed.connect(lambda value: update_volume(value))
+
+    # Start the server in the background
+    run_server_in_background()
+
+    # Show the UI window
+    window.show()
+    print("Second Life Chat log to Speech version 1.0Beta by Jara Lowell")
+
+    # Start the PyQt5 application event loop
+    sys.exit(app.exec_())
