@@ -10,6 +10,7 @@ import regex as re
 from edge_tts import Communicate
 import gc
 import unicodedata
+from configparser import ConfigParser
 
 # Initialize pygame mixer globally
 pygame.mixer.init()
@@ -121,9 +122,26 @@ def spell_check_message(message):
 
     return message
 
+def create_default_config(file_path):
+    """Create a default config.ini file if it doesn't exist."""
+    if not os.path.exists(file_path):
+        print(f"Config file not found. Creating default config at {file_path}...")
+        config = ConfigParser()
+        config['Settings'] = {
+            'log_file_path': 'D:\\SecondLife\\Logs\\SLAvatar_Name\\chat.txt',
+            'enable_spelling_check': 'False',
+            'ignore_list': 'zcs, gm',
+            'obs_chat_filtered': 'True',
+            'edge_tts_llm': 'en-US-EmmaMultilingualNeural'
+        }
+        with open(file_path, 'w') as config_file:
+            config.write(config_file)
+        return True
+    return False
+
 async def speak_text(text2say):
     """Use Edge TTS to speak the given text."""
-    global is_playing
+    global is_playing, EdgeVoice
 
     # Wait until the current audio finishes
     while is_playing:
@@ -137,7 +155,7 @@ async def speak_text(text2say):
         # options are: Female en-US-AvaMultilingualNeural or en-US-EmmaMultilingualNeural
         #              Male   en-US-AndrewMultilingualNeural or en-US-BrianMultilingualNeural
         try:
-            await Communicate(text = text2say, voice='en-US-EmmaMultilingualNeural', rate = '+8%', pitch = '+0Hz').save(output_file)
+            await Communicate(text = text2say, voice=EdgeVoice, rate = '+8%', pitch = '+0Hz').save(output_file)
         except Exception as e:
             print(f"Error generating audio: {e}")
             return
@@ -300,9 +318,19 @@ def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    log_file_path = r"D:\SecondLife\Logs\SLAvatar.Name\chat.txt"
-    Enable_Spelling_Check = False  # Set to True to enable spelling check or False to Disable it
-    IgnoreList = ["zcs", "gm", "murr", "dina", "mama-allpa (f) v3.71"] # Object names we want to ignore in lower case
+    if create_default_config('config.ini'):
+        print("Default config.ini created. Please edit it with your settings.")
+        exit(0)
+
+    config = ConfigParser()
+    config.read('config.ini')
+
+    # Parse configuration values
+    log_file_path = config.get('Settings', 'log_file_path')
+    Enable_Spelling_Check = config.getboolean('Settings', 'enable_spelling_check')
+    IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list').split(',')]
+    OBSChatFiltered = config.getboolean('Settings', 'obs_chat_filtered')
+    EdgeVoice = config.get('Settings', 'edge_tts_llm')
 
     if Enable_Spelling_Check:
         import language_tool_python

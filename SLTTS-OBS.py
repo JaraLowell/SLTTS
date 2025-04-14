@@ -135,11 +135,12 @@ def create_default_config(file_path):
             'enable_spelling_check': 'False',
             'ignore_list': 'zcs, gm',
             'obs_chat_filtered': 'True',
-            'edge_tts_llm': 'en-US-JennyNeural'
+            'edge_tts_llm': 'en-US-EmmaMultilingualNeural'
         }
         with open(file_path, 'w') as config_file:
             config.write(config_file)
-        print("Default config.ini created.")
+        return True
+    return False
 
 async def speak_text(text2say):
     """Use Edge TTS to speak the given text."""
@@ -470,7 +471,10 @@ async def monitor_log(log_file):
         print("Stopped monitoring.")
 
 if __name__ == "__main__":
-    create_default_config('config.ini')
+    if create_default_config('config.ini'):
+        print("Default config.ini created. Please edit it with your settings.")
+        exit(0)
+
     config = ConfigParser()
     config.read('config.ini')
 
