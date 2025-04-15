@@ -375,114 +375,126 @@ async def monitor_log(log_file):
                 gc.collect()
                 last_gc_time = current_time
 
+            # Check if the file has been modified
             if current_mod_time != last_mod_time:
                 last_mod_time = current_mod_time
-                with open(log_file, 'r', encoding='utf-8') as file:
-                    file.seek(last_position)
-                    new_lines = file.readlines()
-                    last_position = file.tell()
-                    for line in new_lines:
-                        line = line.strip()
-                        if line:
-                            # Extract the speaker and message
-                            try:
-                                if line.startswith("[20"):
-                                    isemote = False
-                                    isrepat = False
-                                    # Get the timestamp and the rest of the line
-                                    timestamp, rest = line.split(']', 1)
-                                    speaker_part, message = rest.split(':', 1)
-                                    speaker_part = speaker_part.strip()
-                                    message = message.strip()
-                                    messageorg = message
-                                    first_name = None
-                                    # IgnoreList
-                                    if speaker_part in name_cache:
-                                        first_name = name_cache[speaker_part]
-                                    elif speaker_part.lower() not in IgnoreList:
-                                        if '(' in speaker_part and ')' in speaker_part:
-                                            speaker = speaker_part.split('(')[1].split(')')[0].strip()
-                                            first_name = speaker.split('.')[0].capitalize()
-                                            speaker = speaker_part.split('(')[0].strip()
-                                        else:
-                                            speaker = speaker_part
 
-                                        if speaker == 'Second Life':
-                                            first_name = None
-                                        elif " " in speaker:
-                                            tmp = speaker.split(' ')
-                                            salutations = {"lady", "lord", "sir", "miss", "ms", "mr", "mrs", "dr", "prof"}
-                                            if all(part.isalnum() for part in tmp):
-                                                if tmp[0].lower() in salutations and len(tmp) > 1:
-                                                    if clean_name(tmp[1]):
-                                                        first_name = tmp[1].capitalize()
-                                                elif clean_name(tmp[0]):
-                                                    first_name = tmp[0].capitalize()
-                                        elif speaker.isalnum():
-                                            if clean_name(speaker):
-                                                first_name = speaker.capitalize()
+                # Reopen the file to ensure we get the latest data
+                try:
+                    with open(log_file, 'r', encoding='utf-8') as file:
+                        file.seek(last_position)  # Seek to the last known position
+                        new_lines = file.readlines()
+                        last_position = file.tell()  # Update the last position after reading
 
-                                        if first_name:
-                                            first_name = re.sub(r'(?<!\p{L})\d+$', '', first_name)
-                                            name_cache[speaker_part] = first_name
+                        for line in new_lines:
+                            line = line.strip()
+                            if line:
+                                # Process the line (existing logic)
+                                try:
+                                    if line.startswith("[20"):
+                                        isemote = False
+                                        isrepat = False
+                                        # Extract timestamp and message
+                                        timestamp, rest = line.split(']', 1)
+                                        speaker_part, message = rest.split(':', 1)
+                                        speaker_part = speaker_part.strip()
+                                        message = message.strip()
+                                        messageorg = message
+                                        first_name = None
 
-                                    if first_name:
-                                        if last_user != first_name:
-                                            last_user = first_name
-                                            isrepat = False
-                                        elif time.time() - last_chat >= 120:
-                                            isrepat = False
-                                        else:
-                                            isrepat = True
-                                        if message.startswith("/me"):
-                                            message = message[3:].strip()
-                                            messageorg = messageorg[3:].strip()
-                                            isemote = True
-                                            isrepat = False
-                                        if message.startswith("shouts: "):
-                                            message = message[8:].strip()
-                                            messageorg = messageorg[8:].strip()
-                                        if message.startswith("whispers: "):
-                                            message = message[10:].strip()
-                                            messageorg = messageorg[10:].strip()
-                                        message = spell_check_message(message)
-
-                                        if last_message == message:
-                                            message = ''
-
-                                        if message:
-                                            last_message = message
-                                            if isrepat:
-                                                to_speak = f"{message}"
-                                                to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
-                                                print(f"           {message}")
-                                            elif isemote:
-                                                to_speak = f"{first_name} {message}"
-                                                to_cc = f"{first_name} {message}" if OBSChatFiltered else f"{first_name} {messageorg}"
-                                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
+                                        # Handle IgnoreList and speaker name extraction
+                                        if speaker_part in name_cache:
+                                            first_name = name_cache[speaker_part]
+                                        elif speaker_part.lower() not in IgnoreList:
+                                            if '(' in speaker_part and ')' in speaker_part:
+                                                speaker = speaker_part.split('(')[1].split(')')[0].strip()
+                                                first_name = speaker.split('.')[0].capitalize()
+                                                speaker = speaker_part.split('(')[0].strip()
                                             else:
-                                                to_speak = f"{first_name} says: {message}"
-                                                to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
-                                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
+                                                speaker = speaker_part
 
-                                            await update_chat(to_cc)
-                                            await speak_text(to_speak)
-                                            last_chat = time.time()
+                                            if speaker == 'Second Life':
+                                                first_name = None
+                                            elif " " in speaker:
+                                                tmp = speaker.split(' ')
+                                                salutations = {"lady", "lord", "sir", "miss", "ms", "mr", "mrs", "dr", "prof"}
+                                                if all(part.isalnum() for part in tmp):
+                                                    if tmp[0].lower() in salutations and len(tmp) > 1:
+                                                        if clean_name(tmp[1]):
+                                                            first_name = tmp[1].capitalize()
+                                                    elif clean_name(tmp[0]):
+                                                        first_name = tmp[0].capitalize()
+                                            elif speaker.isalnum():
+                                                if clean_name(speaker):
+                                                    first_name = speaker.capitalize()
+
+                                            if first_name:
+                                                first_name = re.sub(r'(?<!\p{L})\d+$', '', first_name)
+                                                name_cache[speaker_part] = first_name
+
+                                        # Process the message
+                                        if first_name:
+                                            if last_user != first_name:
+                                                last_user = first_name
+                                                isrepat = False
+                                            elif time.time() - last_chat >= 120:
+                                                isrepat = False
+                                            else:
+                                                isrepat = True
+                                            if message.startswith("/me"):
+                                                message = message[3:].strip()
+                                                messageorg = messageorg[3:].strip()
+                                                isemote = True
+                                                isrepat = False
+                                            if message.startswith("shouts: "):
+                                                message = message[8:].strip()
+                                                messageorg = messageorg[8:].strip()
+                                            if message.startswith("whispers: "):
+                                                message = message[10:].strip()
+                                                messageorg = messageorg[10:].strip()
+                                            message = spell_check_message(message)
+
+                                            if last_message == message:
+                                                message = ''
+
+                                            if message:
+                                                last_message = message
+                                                if isrepat:
+                                                    to_speak = f"{message}"
+                                                    to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
+                                                    print(f"           {message}")
+                                                elif isemote:
+                                                    to_speak = f"{first_name} {message}"
+                                                    to_cc = f"{first_name} {message}" if OBSChatFiltered else f"{first_name} {messageorg}"
+                                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
+                                                else:
+                                                    to_speak = f"{first_name} says: {message}"
+                                                    to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
+                                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
+
+                                                await update_chat(to_cc)
+                                                await speak_text(to_speak)
+                                                last_chat = time.time()
+                                        else:
+                                            last_user = None
+                                            print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {speaker_part}: {message}")
+                                    elif last_user is not None:
+                                        message = line.strip()
+                                        message = spell_check_message(message)
+                                        if last_message != message and message:
+                                            last_message = message
+                                            print(f"           {message}")
+                                            await update_chat(last_user + ' ' + message)
+                                            await speak_text(message)
                                     else:
-                                        last_user = None
-                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {speaker_part}: {message}")
-                                elif last_user != None:
-                                    message = line.strip()
-                                    message = spell_check_message(message)
-                                    if last_message != message and message:
-                                        last_message = message
-                                        print(f"           {message}")
-                                        await update_chat(last_user + ' ' + message)
-                                        await speak_text(message)
-                                else:
-                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED No Timestamp!: {line.strip()}")
-                            except ValueError:
-                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] ERROR! Could not parse line: {line.strip()}")
+                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED No Timestamp!: {line.strip()}")
+                                except ValueError:
+                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] ERROR! Could not parse line: {line.strip()}")
+                except FileNotFoundError:
+                    print(f"Log file not found: {log_file}")
+                except IOError as e:
+                    print(f"Error reading log file: {e}")
+
             await asyncio.sleep(1)
     except Exception as e:
         print(f"Error while monitoring log file: {e}")
