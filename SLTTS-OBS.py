@@ -21,7 +21,7 @@ import sys
 from SLTTSUI import MainWindow
 import threading
 import builtins
-
+from num2words import num2words
 import emoji
 """
 PyInstaller Packaging Issue:
@@ -81,20 +81,13 @@ def clean_name(name):
 
 def replace_currency_with_words(message):
     currency_to_word = {
+        "L$": "Linden Dollar",  # Added L$ for Linden Dollar
         "$": "Dollar", "€": "Euro", "£": "Pound", "¥": "Yen", "₹": "Rupee", "₩": "Won", "₽": "Ruble", "₺": "Lira", "₫": "Dong",
         "₦": "Naira", "฿": "Baht", "₴": "Hryvnia", "₲": "Guarani", "₡": "Colon", "₱": "Peso", "₸": "Tenge", "₭": "Kip",
-        "₮": "Tugrik", "₤": "Lira", "₳": "Austral", "₵": "Cedi", "₯": "Drachma", "₠": "Ecu", "₧": "Peseta", "₰": "Pfennig",
-        "L$": "Linden Dollar"  # Added L$ for Linden Dollar
+        "₮": "Tugrik", "₤": "Lira", "₳": "Austral", "₵": "Cedi", "₯": "Drachma", "₠": "Ecu", "₧": "Peseta", "₰": "Pfennig"
     }
-    # Match currency symbols followed by numbers (e.g., $10, €1.50, L$100)
-    def replace_match(match):
-        symbol = match.group(1)
-        number = match.group(2).strip()
-        word = currency_to_word.get(symbol, symbol)
-        return f"{number} {word}"
-
-    # Replace matches in the message
-    message = re.sub(r'(L\$|[€£¥₹₩₽₺₫₦฿₴₲₡₱₸₭₮₤₳₵₯₠₧₰\$])\s?(\d+(\.\d+)?)', replace_match, message)
+    for symbol, word in currency_to_word.items():
+        message = message.replace(symbol, ' ' + word + ' ')
 
     return message
 
@@ -107,12 +100,16 @@ def spell_check_message(message):
     if not message:
         return ""  # Return empty string if message is empty
 
-    # Collapse repeated characters (3 or more)
-    message = re.sub(r'(.)\1{2,}', r'\1', message)
     message = message.strip()
+
+    # Replace currency symbols followed by numbers
+    message = replace_currency_with_words(message)
 
     # Replace emojis with their descriptive words
     message = emoji.replace_emoji(message, replace=emoji_to_word)
+
+    # Collapse repeated characters (3 or more)
+    message = re.sub(r'([^0-9])\1{2,}', r'\1', message)
 
     if len(message) == 1:
         symbol_to_word = {
@@ -123,9 +120,6 @@ def spell_check_message(message):
                 "<": "Less than", ">": "Greater than", "|": "Pipe", "~": "Tilde", "`": "Backtick",
             }
         return symbol_to_word.get(message, message) # Return the word for the symbol or the symbol itself
-
-    # Replace currency symbols followed by numbers
-    message = replace_currency_with_words(message)
 
     # Remove unwanted characters while preserving letters, punctuation, spaces, digits, and math symbols
     message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE)  # Remove unsupported characters
