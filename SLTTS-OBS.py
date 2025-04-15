@@ -32,6 +32,7 @@ last_message = None
 last_user = None
 last_chat = 0
 tool = None
+readloop = False
 
 def clean_name(name):
     # Lets check if only one language is used in the name
@@ -232,6 +233,8 @@ async def sse_handler(request):
 
     except asyncio.CancelledError:
         print("SSE handler task was cancelled.")
+    except Exception as e:
+        print(f"Error in SSE handler: {e}")
     finally:
         try:
             await response.write_eof()
@@ -278,7 +281,7 @@ async def chat_page_handler(request):
                 margin-bottom: 2px; /* Space between chat lines */
                 color: white; /* Text color */
                 display: inline-block; /* Make the box wrap around the text */
-                max-width: 45%; /* Optional: Limit the width of the box to 80% of the container */
+                max-width: 100%; /* Optional: Limit the width of the box to 80% of the container */
                 word-wrap: break-word; /* Ensure long words or URLs wrap to the next line */
                 text-shadow: -1px -1px 0 #00000080, 1px -1px 0 #00000080, -1px 1px 0 #00000080, 1px 1px 0 #00000080, 1px 1px 1px #000000, 0 0 1em #000000, 0 0 0.2em #000000;
                 transition: transform 0.5s ease, opacity 0.5s ease;
@@ -328,14 +331,25 @@ async def start_server():
     app.router.add_get('/sse', sse_handler)  # Serve the SSE endpoint
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, 'localhost', 8080)
-    await site.start()
-    print("OBS Page service started on http://localhost:8080 Use this URL in OBS via a browser source.")
+    port = 8080
+    while True:
+        try:
+            site = web.TCPSite(runner, 'localhost', port)
+            await site.start()
+            print(f"OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
+            break
+        except OSError as e:
+            if e.errno == 98:  # Port already in use
+                print(f"Port {port} is already in use. Trying port {port + 10}...")
+                port += 10
+            else:
+                print(f"Error starting server: {e}")
+                raise
 
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
     await speak_text("Starting up! Monitoring log file...")
-    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered
+    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop
 
     # Start at the end of the file
     last_position = 0
@@ -352,7 +366,7 @@ async def monitor_log(log_file):
     name_cache = {}
 
     try:
-        while True:
+        while readloop:
             current_time = time.time()
             current_mod_time = os.path.getmtime(log_file)
 
@@ -470,8 +484,10 @@ async def monitor_log(log_file):
                             except ValueError:
                                 print(f"[{time.strftime('%H:%M:%S', time.localtime())}] ERROR! Could not parse line: {line.strip()}")
             await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        print("Stopped monitoring.")
+    except Exception as e:
+        print(f"Error while monitoring log file: {e}")
+    finally:
+        print("Stopped monitoring log file.")
 
 def update_global(variable_name, value):
     """Update a global variable dynamically."""
@@ -494,31 +510,19 @@ def load_slang_replacements(file_path="slangreplce.json"):
         print(f"Slang replacements file not found: {file_path}")
         return {}
 
-# Override the print function to append to window.text_display
-original_print = print  # Keep a reference to the original print function
-def custom_print(*args, **kwargs):
-    message = " ".join(map(str, args))  # Combine all arguments into a single string
-    if 'window' in globals() and hasattr(window, 'text_display'):
-        window.update_display(message)  # Append the message to the text_display widget
-    # original_print(*args, **kwargs)  # Optionally, call the original print function
-
-# Replace the built-in print function with the custom one
-builtins.print = custom_print
-
 def run_server_in_background():
     """Run the server as a background daemon."""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.create_task(start_server())
     threading.Thread(target=loop.run_forever, daemon=True).start()
-    print("Server is running in the background.")
 
 def start_monitoring(log_file_path):
     """Start the monitor_log task."""
     global monitor_task, monitor_loop
 
     if monitor_task is not None:
-        print("Log monitoring is already running.")
+        original_print("Log monitoring is already running.")
         return
 
     monitor_loop = asyncio.new_event_loop()
@@ -533,7 +537,7 @@ def stop_monitoring():
     global monitor_task, monitor_loop
 
     if monitor_task is None:
-        print("Log monitoring is not running.")
+        original_print("Log monitoring is not running.")
         return
 
     monitor_task.cancel()  # Cancel the task
@@ -542,8 +546,6 @@ def stop_monitoring():
     if monitor_loop is not None:
         monitor_loop.stop()  # Stop the event loop
         monitor_loop = None
-
-    print("Stopped monitoring log file.")
 
 if __name__ == "__main__":
     if create_default_config('config.ini'):
@@ -561,6 +563,8 @@ if __name__ == "__main__":
     OBSChatFiltered = config.getboolean('Settings', 'obs_chat_filtered')
     EdgeVoice = config.get('Settings', 'edge_tts_llm')
 
+    pygame.mixer.music.set_volume(config.getint('Settings', 'volume', fallback=75) / 100) # Set default volume to 75%
+
     app = QApplication(sys.argv)
     window = MainWindow(config)
 
@@ -572,11 +576,13 @@ if __name__ == "__main__":
 
     def start_monitoring_ui():
         """Start monitoring from the UI."""
-        global chat_messages, slang_replacements
+        global chat_messages, slang_replacements, readloop
         log_file_path = window.log_file_path_input.text()  # Get the log file path from the input field
         if os.path.exists(log_file_path):
+            readloop = True
             slang_replacements = load_slang_replacements()
-            chat_messages.clear()
+            print(f"Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
+            # chat_messages.clear()
             start_monitoring(log_file_path)
             window.start_button.setText("Stop Log Reading")
             window.start_button.setStyleSheet("color: #e67a7f;")
@@ -585,9 +591,10 @@ if __name__ == "__main__":
 
     def stop_monitoring_ui():
         """Stop monitoring from the UI."""
-        global chat_messages
-        chat_messages.clear()
+        global chat_messages, readloop
+        readloop = False
         stop_monitoring()
+        chat_messages.clear()
         window.start_button.setText("Start Log Reading")
         window.start_button.setStyleSheet("color: #9d9d9d;")
 
@@ -598,22 +605,33 @@ if __name__ == "__main__":
         else:
             stop_monitoring_ui()
 
-    # Connect the UI buttons to the respective functions
-    window.start_button.clicked.connect(toggle_monitoring)
-    window.spelling_check_toggled.connect(lambda value: update_global("Enable_Spelling_Check", value))
-    window.obs_filter_toggled.connect(lambda value: update_global("OBSChatFiltered", value))
-    window.ignore_list_updated.connect(lambda value: update_global("IgnoreList", value))
-
-    window.log_file_path_input.textChanged.connect(lambda value: update_global("log_file_path", value))
-    window.EdgeVoice_input.textChanged.connect(lambda value: update_global("EdgeVoice", value))
-
-    window.volume_changed.connect(lambda value: update_volume(value))
-
     # Start the server in the background
     run_server_in_background()
 
     # Show the UI window
     window.show()
+
+    # Connect the UI buttons to the respective functions
+    window.start_button.clicked.connect(toggle_monitoring)
+    window.spelling_check_toggled.connect(lambda value: update_global("Enable_Spelling_Check", value))
+    window.obs_filter_toggled.connect(lambda value: update_global("OBSChatFiltered", value))
+    window.ignore_list_updated.connect(lambda value: update_global("IgnoreList", value))
+    window.log_file_path_input.textChanged.connect(lambda value: update_global("log_file_path", value))
+    window.EdgeVoice_input.textChanged.connect(lambda value: update_global("EdgeVoice", value))
+    window.volume_changed.connect(lambda value: update_volume(value))
+
+    # Override the print function to append to window.text_display
+    original_print = print  # Keep a reference to the original print function
+    def custom_print(*args, **kwargs):
+        message = " ".join(map(str, args))  # Combine all arguments into a single string
+        if 'window' in globals() and hasattr(window, 'text_display'):
+            window.update_display(message)  # Append the message to the text_display widget
+
+        original_print(*args, **kwargs)  # Optionally, call the original print function
+
+    # Replace the built-in print function with the custom one
+    builtins.print = custom_print
+
     print("Second Life Chat log to Speech version 1.1 Beta by Jara Lowell")
 
     # Start the PyQt5 application event loop

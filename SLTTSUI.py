@@ -153,10 +153,10 @@ class MainWindow(QtWidgets.QWidget):
         self.global_config.set('Settings', 'enable_spelling_check', str(new_value))
         if new_value:
             self.spelling_check_button.setStyleSheet("color: #00c983;")
-            self.update_display(f"Spelling check enabled. If it was disabled on loead, reaload the application")
+            self.update_display(f"Grammar tool and spellchecker check enabled.")
         else:
             self.spelling_check_button.setStyleSheet("color: #9d9d9d;")
-            self.update_display(f"Spelling check disabled.")
+            self.update_display(f"Grammar tool and spellchecker check disabled.")
         self.spelling_check_toggled.emit(new_value)  # Emit signal
 
     def toggle_obs_filter(self):
@@ -169,7 +169,7 @@ class MainWindow(QtWidgets.QWidget):
             self.obs_filter_button.setStyleSheet("color: #9d9d9d;")
         self.obs_filter_toggled.emit(new_value)  # Emit signal
         status = "enabled" if new_value else "disabled"
-        self.update_display(f"OBS chat filter {status}.")
+        self.update_display(f"Unfiltered or corrected chat to OBS page {status}.")
 
     def update_display(self, message):
         self.text_display.append(message)
