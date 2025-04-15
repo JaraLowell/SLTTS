@@ -21,7 +21,7 @@ import sys
 from SLTTSUI import MainWindow
 import threading
 import builtins
-# from num2words import num2words
+
 import emoji
 """
 PyInstaller Packaging Issue:
@@ -79,18 +79,6 @@ def clean_name(name):
 
     return False
 
-def replace_currency_with_words(message):
-    currency_to_word = {
-        "L$": "Linden Dollar",  # Added L$ for Linden Dollar
-        "$": "Dollar", "€": "Euro", "£": "Pound", "¥": "Yen", "₹": "Rupee", "₩": "Won", "₽": "Ruble", "₺": "Lira", "₫": "Dong",
-        "₦": "Naira", "฿": "Baht", "₴": "Hryvnia", "₲": "Guarani", "₡": "Colon", "₱": "Peso", "₸": "Tenge", "₭": "Kip",
-        "₮": "Tugrik", "₤": "Lira", "₳": "Austral", "₵": "Cedi", "₯": "Drachma", "₠": "Ecu", "₧": "Peseta", "₰": "Pfennig"
-    }
-    for symbol, word in currency_to_word.items():
-        message = message.replace(symbol, ' ' + word + ' ')
-
-    return message
-
 def emoji_to_word(emoji_char, _):
     """Convert an emoji to its descriptive word."""
     return emoji.demojize(emoji_char).replace(":", "").replace("_", " ")
@@ -100,28 +88,14 @@ def spell_check_message(message):
     if not message:
         return ""  # Return empty string if message is empty
 
-    # Replace currency symbols followed by numbers
-    message = replace_currency_with_words(message)
-
     # Replace emojis with their descriptive words
     message = emoji.replace_emoji(message, replace=emoji_to_word)
 
-    # Collapse repeated characters (3 or more)
-    message = re.sub(r'([^0-9])\1{2,}', r'\1', message)
-
     if len(message) == 1:
-        symbol_to_word = {
-                "?": "Question mark", "!": "Exclamation mark", ".": "Dot", ",": "Comma", ":": "Colon", ";": "Semicolon",
-                "-": "Dash", "+": "Plus", "=": "Equals", "*": "Asterisk", "/": "Slash", "\\": "Backslash", "@": "At symbol",
-                "#": "Hash", "$": "Dollar sign", "%": "Percent", "^": "Caret", "&": "Ampersand", "(": "Left parenthesis",
-                ")": "Right parenthesis", "[": "Left bracket", "]": "Right bracket", "{": "Left brace", "}": "Right brace",
-                "<": "Less than", ">": "Greater than", "|": "Pipe", "~": "Tilde", "`": "Backtick",
-            }
-        return symbol_to_word.get(message, message) # Return the word for the symbol or the symbol itself
+        return message
 
     # Remove unwanted characters while preserving letters, punctuation, spaces, digits, and math symbols
-    message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE)  # Remove unsupported characters
-    message = re.sub(r'\s+', ' ', message).strip()  # Replace multiple spaces with a single space
+    # message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE)  # Remove unsupported characters
 
     # Simplify Second Life map URLs
     message = re.sub(r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+', lambda match: match.group(1).replace('%20', ' '), message)
@@ -161,9 +135,15 @@ def spell_check_message(message):
         for exception in exceptions:
             message = re.sub(rf'\b{exception.lower()}\b', exception, message, flags=re.IGNORECASE)
 
+    # Replace L$ with Linden Dollars
+    message = re.sub(r'\b[Ll]\$\b', ' Linden dollars ', message)
+
+    # Collapse repeated characters (3 or more)
+    message = re.sub(r'([^0-9])\1{2,}', r'\1', message)
+
     if len(message) > 1:
         message = message[0].upper() + message[1:]
-    
+
     # Replace double spaces with a single space
     message = re.sub(r'\s+', ' ', message).strip()
 
@@ -678,7 +658,7 @@ if __name__ == "__main__":
     def custom_print(*args, **kwargs):
         message = " ".join(map(str, args))  # Combine all arguments into a single string
         if 'window' in globals() and hasattr(window, 'text_display'):
-            window.update_display(message)  # Append the message to the text_display widget
+            window.update_display(html.escape(message))  # Append the message to the text_display widget
 
         original_print(*args, **kwargs)  # Optionally, call the original print function
 
