@@ -83,9 +83,10 @@ def replace_currency_with_words(message):
     currency_to_word = {
         "$": "Dollar", "€": "Euro", "£": "Pound", "¥": "Yen", "₹": "Rupee", "₩": "Won", "₽": "Ruble", "₺": "Lira", "₫": "Dong",
         "₦": "Naira", "฿": "Baht", "₴": "Hryvnia", "₲": "Guarani", "₡": "Colon", "₱": "Peso", "₸": "Tenge", "₭": "Kip",
-        "₮": "Tugrik", "₤": "Lira", "₳": "Austral", "₵": "Cedi", "₯": "Drachma", "₠": "Ecu", "₧": "Peseta", "₰": "Pfennig"
+        "₮": "Tugrik", "₤": "Lira", "₳": "Austral", "₵": "Cedi", "₯": "Drachma", "₠": "Ecu", "₧": "Peseta", "₰": "Pfennig",
+        "L$": "Linden Dollar"  # Added L$ for Linden Dollar
     }
-    # Match currency symbols followed by numbers (e.g., $10, €1.50)
+    # Match currency symbols followed by numbers (e.g., $10, €1.50, L$100)
     def replace_match(match):
         symbol = match.group(1)
         number = match.group(2).strip()
@@ -93,7 +94,7 @@ def replace_currency_with_words(message):
         return f"{number} {word}"
 
     # Replace matches in the message
-    message = re.sub(r'([€£¥₹₩₽₺₫₦฿₴₲₡₱₸₭₮₤₳₵₯₠₧₰\$])\s?(\d+(\.\d+)?)', replace_match, message)
+    message = re.sub(r'(L\$|[€£¥₹₩₽₺₫₦฿₴₲₡₱₸₭₮₤₳₵₯₠₧₰\$])\s?(\d+(\.\d+)?)', replace_match, message)
 
     return message
 
@@ -384,7 +385,7 @@ async def start_server():
             print(f"OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
             break
         except OSError as e:
-            if e.errno == 98:  # Port already in use
+            if e.errno == 98 or e.errno == 10048:  # Port already in use
                 print(f"Port {port} is already in use. Trying port {port + 10}...")
                 port += 10
             else:
