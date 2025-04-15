@@ -21,8 +21,23 @@ import sys
 from SLTTSUI import MainWindow
 import threading
 import builtins
-import emoji
 
+import emoji
+"""
+PyInstaller Packaging Issue:
+If the script is packaged into an executable using a tool like PyInstaller, the emoji.json file might not be included in the bundled application. PyInstaller does not automatically include all data files from third-party libraries unless explicitly specified in the .spec file or via configuration.
+To ensure that the emoji.json file is included, you can modify the PyInstaller .spec file to include the emoji.json file as a data file. Here's an example of how to do this:
+
+from PyInstaller.utils.hooks import collect_data_files
+
+datas = collect_data_files('emoji')  # Collect all data files from the emoji library
+
+a = Analysis(
+    ...
+    datas=datas,  # Add the collected data files
+    ...
+)
+"""
 
 # Initialize pygame mixer globally
 pygame.mixer.init()
