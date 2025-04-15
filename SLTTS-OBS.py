@@ -21,6 +21,8 @@ import sys
 from SLTTSUI import MainWindow
 import threading
 import builtins
+import emoji
+
 
 # Initialize pygame mixer globally
 pygame.mixer.init()
@@ -62,13 +64,41 @@ def clean_name(name):
 
     return False
 
+def replace_currency_with_words(message):
+    currency_to_word = {
+        "$": "Dollar", "€": "Euro", "£": "Pound", "¥": "Yen", "₹": "Rupee", "₩": "Won", "₽": "Ruble", "₺": "Lira", "₫": "Dong",
+        "₦": "Naira", "฿": "Baht", "₴": "Hryvnia", "₲": "Guarani", "₡": "Colon", "₱": "Peso", "₸": "Tenge", "₭": "Kip",
+        "₮": "Tugrik", "₤": "Lira", "₳": "Austral", "₵": "Cedi", "₯": "Drachma", "₠": "Ecu", "₧": "Peseta", "₰": "Pfennig"
+    }
+    # Match currency symbols followed by numbers (e.g., $10, €1.50)
+    def replace_match(match):
+        symbol = match.group(1)
+        number = match.group(2).strip()
+        word = currency_to_word.get(symbol, symbol)
+        return f"{number} {word}"
+
+    # Replace matches in the message
+    message = re.sub(r'([€£¥₹₩₽₺₫₦฿₴₲₡₱₸₭₮₤₳₵₯₠₧₰\$])\s?(\d+(\.\d+)?)', replace_match, message)
+
+    return message
+
+def emoji_to_word(emoji_char, _):
+    """Convert an emoji to its descriptive word."""
+    return emoji.demojize(emoji_char).replace(":", "").replace("_", " ")
+
 def spell_check_message(message):
     global Enable_Spelling_Check, tool, slang_replacements
-    message = message.strip()
-
     if not message:
         return ""  # Return empty string if message is empty
-    elif len(message) == 1:
+
+    # Collapse repeated characters (3 or more)
+    message = re.sub(r'(.)\1{2,}', r'\1', message)
+    message = message.strip()
+
+    # Replace emojis with their descriptive words
+    message = emoji.replace_emoji(message, replace=emoji_to_word)
+
+    if len(message) == 1:
         symbol_to_word = {
                 "?": "Question mark", "!": "Exclamation mark", ".": "Dot", ",": "Comma", ":": "Colon", ";": "Semicolon",
                 "-": "Dash", "+": "Plus", "=": "Equals", "*": "Asterisk", "/": "Slash", "\\": "Backslash", "@": "At symbol",
@@ -77,6 +107,9 @@ def spell_check_message(message):
                 "<": "Less than", ">": "Greater than", "|": "Pipe", "~": "Tilde", "`": "Backtick",
             }
         return symbol_to_word.get(message, message) # Return the word for the symbol or the symbol itself
+
+    # Replace currency symbols followed by numbers
+    message = replace_currency_with_words(message)
 
     # Remove unwanted characters while preserving letters, punctuation, spaces, digits, and math symbols
     message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE)  # Remove unsupported characters
@@ -90,9 +123,6 @@ def spell_check_message(message):
 
     # Simplify general URLs to their domain
     message = re.sub(r'(https?://(?:www\.)?([^/\s]+)[^\s]*)', r'\2 link', message)
-
-    # Collapse repeated characters (3 or more)
-    message = re.sub(r'(.)\1{2,}', r'\1', message)
 
     # Replace hyphen with "minus" or space based on context
     message = re.sub(r'(?<=\d)-(?=\d|\=)', ' minus ', message)

@@ -50,7 +50,7 @@ class MainWindow(QtWidgets.QWidget):
             }
             QSlider::groove:horizontal {
                 background: #3c3c3c;
-                height: 6px;
+                height: 4px;
             }
             QSlider::handle:horizontal {
                 background: #9d9d9d;
@@ -63,6 +63,7 @@ class MainWindow(QtWidgets.QWidget):
                 color: #9d9d9d;
                 border: 1px solid #444444;
                 font-family: Fixedsys;
+                line-height: 20px;
             }
             QScrollBar:vertical, QScrollBar:horizontal {
                 background-color: #1e1e1e;
