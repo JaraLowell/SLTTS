@@ -13,6 +13,7 @@ Make sure to pip install the needed libraries:
 * pygame
 * aiohttp (if you wish to use the OBS (html web output) version)
 * PyQt5 
+* emoji
 
 Then edit line 180, to reflect where your chat.log file is located.
 * log_file_path = r"D:\SecondLife\Logs\sl_resident\chat.txt"
