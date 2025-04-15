@@ -25,7 +25,7 @@ class MainWindow(QtWidgets.QWidget):
             QMainWindow {
                     background-color: #121212;
                     color: #9d9d9d;
-                    font-family: Fixedsys;
+                    font-family: Consolas, Courier New, monospace;
             }
             QWidget {
                 background-color: #2b2b2b;
@@ -35,9 +35,9 @@ class MainWindow(QtWidgets.QWidget):
             }
             QTextEdit, QLineEdit {
                 background-color: #1e1e1e;
-                color: #9d9d9d;
+                color: #dddddd;
                 border: 1px solid #3c3c3c;
-                font-family: Fixedsys;
+                font-family: Consolas, Courier New, monospace;
             }
             QPushButton {
                 background-color: #3c3c3c;
@@ -60,9 +60,9 @@ class MainWindow(QtWidgets.QWidget):
             }
             QTextEdit, QPlainTextEdit {
                 background-color: #1e1e1e;
-                color: #9d9d9d;
+                color: #dddddd;
                 border: 1px solid #444444;
-                font-family: Fixedsys;
+                font-family: Consolas, Courier New, monospace;
                 line-height: 20px;
             }
             QScrollBar:vertical, QScrollBar:horizontal {
