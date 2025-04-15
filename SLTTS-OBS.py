@@ -97,6 +97,9 @@ def spell_check_message(message):
     # Remove unwanted characters while preserving letters, punctuation, spaces, digits, and math symbols
     # message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE)  # Remove unsupported characters
 
+    # Replace L$ with Linden Dollars
+    message = re.sub(r"\bL\$", "Linden dollars", message, flags=re.IGNORECASE)
+
     # Simplify Second Life map URLs
     message = re.sub(r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+', lambda match: match.group(1).replace('%20', ' '), message)
 
@@ -134,9 +137,6 @@ def spell_check_message(message):
         # Ensure exception words are capitalized
         for exception in exceptions:
             message = re.sub(rf'\b{exception.lower()}\b', exception, message, flags=re.IGNORECASE)
-
-    # Replace L$ with Linden Dollars
-    message = re.sub(r'\b[Ll]\$\b', ' Linden dollars ', message)
 
     # Collapse repeated characters (3 or more)
     message = re.sub(r'([^0-9])\1{2,}', r'\1', message)
