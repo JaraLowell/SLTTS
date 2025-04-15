@@ -173,6 +173,8 @@ class MainWindow(QtWidgets.QWidget):
         self.update_display(f"Unfiltered or corrected chat to OBS page {status}.")
 
     def update_display(self, message):
+        message = message.replace("&#x27;", "'")
+        message = message.replace("&quot;", '"')
         self.text_display.append(message)
         self.text_display.moveCursor(QtGui.QTextCursor.End)
         self.text_display.ensureCursorVisible()
