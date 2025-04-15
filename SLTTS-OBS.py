@@ -21,7 +21,7 @@ import sys
 from SLTTSUI import MainWindow
 import threading
 import builtins
-from num2words import num2words
+# from num2words import num2words
 import emoji
 """
 PyInstaller Packaging Issue:
@@ -100,8 +100,6 @@ def spell_check_message(message):
     if not message:
         return ""  # Return empty string if message is empty
 
-    message = message.strip()
-
     # Replace currency symbols followed by numbers
     message = replace_currency_with_words(message)
 
@@ -163,8 +161,11 @@ def spell_check_message(message):
         for exception in exceptions:
             message = re.sub(rf'\b{exception.lower()}\b', exception, message, flags=re.IGNORECASE)
 
-    if len(message) > 4:
+    if len(message) > 1:
         message = message[0].upper() + message[1:]
+    
+    # Replace double spaces with a single space
+    message = re.sub(r'\s+', ' ', message).strip()
 
     return message
 
@@ -684,7 +685,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 1.2 Beta by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.3 Beta by Jara Lowell")
 
     # Start the PyQt5 application event loop
     sys.exit(app.exec_())
