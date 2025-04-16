@@ -310,6 +310,8 @@ async def chat_page_handler(request):
                 word-wrap: break-word; /* Ensure long words or URLs wrap to the next line */
                 text-shadow: -1px -1px 0 #00000080, 1px -1px 0 #00000080, -1px 1px 0 #00000080, 1px 1px 0 #00000080, 1px 1px 1px #000000, 0 0 1em #000000, 0 0 0.2em #000000;
                 transition: transform 0.5s ease, opacity 0.5s ease;
+                -webkit-filter: grayscale(100%);
+                filter: grayscale(100%);
             }
             @keyframes fadeout {
                 0% { opacity: 1; } /* Fully visible */

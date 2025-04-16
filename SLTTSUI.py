@@ -175,6 +175,7 @@ class MainWindow(QtWidgets.QWidget):
     def update_display(self, message):
         message = message.replace("&#x27;", "'")
         message = message.replace("&quot;", '"')
+        message = message.replace("&gt;", ">")
         self.text_display.append(message)
         '''
         # Check if the number of lines exceeds 1000
