@@ -485,11 +485,11 @@ async def monitor_log(log_file):
                                                     to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
                                                     print(f"           {message}")
                                                 elif isemote:
-                                                    to_speak = f"{first_name}. {message}"
+                                                    to_speak = f"{first_name} {message}"
                                                     to_cc = f"{first_name} {message}" if OBSChatFiltered else f"{first_name} {messageorg}"
                                                     print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
                                                 else:
-                                                    to_speak = f"{first_name}. says: {message}"
+                                                    to_speak = f"{first_name} says: {message}"
                                                     to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
                                                     print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
 
