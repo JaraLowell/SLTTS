@@ -176,6 +176,17 @@ class MainWindow(QtWidgets.QWidget):
         message = message.replace("&#x27;", "'")
         message = message.replace("&quot;", '"')
         self.text_display.append(message)
+        '''
+        # Check if the number of lines exceeds 1000
+        if self.text_display.document().blockCount() > 1000:
+            self.text_display.setUpdatesEnabled(False) # Temporarily disable updates to prevent visual jumping
+            cursor = self.text_display.textCursor()
+            cursor.movePosition(QtGui.QTextCursor.Start)  # Move to the start of the document
+            cursor.select(QtGui.QTextCursor.BlockUnderCursor)  # Select the first line
+            cursor.removeSelectedText()  # Remove the selected text
+            cursor.deleteChar()  # Remove the newline character
+            self.text_display.setUpdatesEnabled(True)
+        '''
         self.text_display.moveCursor(QtGui.QTextCursor.End)
         self.text_display.ensureCursorVisible()
 

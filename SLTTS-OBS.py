@@ -138,6 +138,10 @@ def spell_check_message(message):
         for exception in exceptions:
             message = re.sub(rf'\b{exception.lower()}\b', exception, message, flags=re.IGNORECASE)
 
+    # Remove unwanted characters that should be removed (non-speakable characters)
+    forbidden_categories = ["So", "Mn", "Mc", "Me", "C", "Sk"]
+    message = "".join(c for c in message if unicodedata.category(c) not in forbidden_categories)
+
     # Collapse repeated characters (3 or more)
     message = re.sub(r'([^0-9])\1{2,}', r'\1', message)
 
@@ -473,6 +477,7 @@ async def monitor_log(log_file):
                                             if message.startswith("whispers: "):
                                                 message = message[10:].strip()
                                                 messageorg = messageorg[10:].strip()
+
                                             message = spell_check_message(message)
 
                                             if last_message == message:
@@ -495,6 +500,11 @@ async def monitor_log(log_file):
 
                                                 await update_chat(to_cc)
                                                 await speak_text(to_speak)
+                                                last_chat = time.time()
+                                            elif messageorg:
+                                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] NO TTS in msg! {first_name}: {messageorg}")
+                                                if not OBSChatFiltered:
+                                                    await update_chat(f"{first_name}: {messageorg}")
                                                 last_chat = time.time()
                                         else:
                                             last_user = None
@@ -665,7 +675,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 1.4 Beta by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.44 Beta by Jara Lowell")
 
     # Start the PyQt5 application event loop
     sys.exit(app.exec_())
