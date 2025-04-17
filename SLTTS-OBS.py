@@ -68,7 +68,7 @@ def clean_name(name):
             script_name = "Unknown" # Handle characters without a name
             continue
 
-        if "WITH" in script_name:
+        if "WITH" in script_name or "SMALL CAPITAL" in script_name:
             # Seriously ! ŦorestŞheŨrt is Latin ... but with stroke F, cedilla S and tilde U
             script_name = script_name.split()[0] + 'Extended'
         elif "DIGIT" in script_name:
@@ -531,7 +531,7 @@ async def monitor_log(log_file):
                                                 if isrepat:
                                                     to_speak = f"{message}"
                                                     to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
-                                                    print(f"           {message}")
+                                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {message}")
                                                 elif isemote:
                                                     to_speak = f"{first_name} {message}"
                                                     to_cc = f"{first_name} {message}" if OBSChatFiltered else f"{first_name} {messageorg}"
@@ -557,7 +557,7 @@ async def monitor_log(log_file):
                                         message = spell_check_message(message)
                                         if last_message != message and message:
                                             last_message = message
-                                            print(f"           {message}")
+                                            print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {message}")
                                             await update_chat(last_user + ' ' + message)
                                             await speak_text(message)
                                     else:
