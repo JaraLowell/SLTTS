@@ -2,8 +2,14 @@
 # -*- coding: utf-8 -*-
 
 # Needs > pip install edge-tts language_tool_python asyncio regex pygame
-import asyncio
+import sys
 import os
+# Set QT_PLUGIN_PATH if running as a PyInstaller executable
+if getattr(sys, 'frozen', False):  # Check if running as a PyInstaller executable
+    qt_plugin_path = os.path.join(sys._MEIPASS, 'PyQt5', 'Qt', 'plugins')
+    os.environ['QT_PLUGIN_PATH'] = qt_plugin_path
+
+import asyncio
 import time
 import pygame
 import regex as re
@@ -18,7 +24,6 @@ import html
 import json
 from PyQt5.QtWidgets import QApplication
 from PyQt5 import QtCore
-import sys
 from SLTTSUI import MainWindow
 import threading
 import builtins
