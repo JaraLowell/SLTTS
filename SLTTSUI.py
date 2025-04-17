@@ -1,6 +1,7 @@
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import pyqtSignal
 import sys
+import os
 from configparser import ConfigParser
 
 class MainWindow(QtWidgets.QWidget):
@@ -13,7 +14,8 @@ class MainWindow(QtWidgets.QWidget):
         super().__init__()
         self.global_config = global_config  # Use the global configuration object
         self.setWindowTitle("Second Life TTS")
-        self.setWindowIcon(QtGui.QIcon("icon.png"))
+        icon_path = os.path.join(getattr(sys, '_MEIPASS', os.path.abspath('.')), "icon.png")
+        self.setWindowIcon(QtGui.QIcon(icon_path))
         geometry = self.global_config.get('Settings', 'window_geometry', fallback=None)
         if geometry:
             self.restoreGeometry(QtCore.QByteArray.fromHex(geometry.encode('utf-8')))

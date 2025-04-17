@@ -89,11 +89,11 @@ def url2word(message):
     message = re.sub(r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+', lambda match: match.group(1).replace('%20', ' '), message)
 
     # Replace Second Life agent or group links with "Second Life Link"
-    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/(about|displayname)', lambda m: f"[{m.group(1).capitalize()} Link]", message)
+    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/(about|displayname)', lambda m: f"[SL {m.group(1).capitalize()} URL]", message)
 
     # Simplify general URLs to their domain
     message = re.sub(r'(https?://(?:www\.)?([^/\s]+)[^\s]*)', r'\2 link', message)
-        
+
     return message
 
 def spell_check_message(message):
@@ -286,7 +286,8 @@ async def chat_page_handler(request):
     try:
         with open("chat_template.html", "r", encoding="utf-8") as file:
             html_content = file.read()
-    except FileNotFoundError:
+    except Exception as e:
+        original_print(f"Error loading chat template: {e}")
         # Fallback to a default template
         html_content = """
     <!DOCTYPE html>
