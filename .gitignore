@@ -11,3 +11,4 @@ tkintermapview2/__pycache__/
 *.mp3
 config.ini
 __pycache__/SLTTSUI.cpython-310.pyc
+version_info.txt

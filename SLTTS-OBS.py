@@ -237,7 +237,6 @@ async def update_chat(message):
 
 async def sse_handler(request):
     """Handle Server-Sent Events for real-time chat updates."""
-    print(f"Client connected to SSE from {request.remote}")
     response = web.StreamResponse(
         status=200,
         reason='OK',
@@ -288,11 +287,18 @@ async def sse_handler(request):
 
 async def chat_page_handler(request):
     """Serve the chat page with SSE integration."""
+    filesend = 'chat_template.html'
     try:
         with open("chat_template.html", "r", encoding="utf-8") as file:
             html_content = file.read()
+    except (UnicodeDecodeError, FileNotFoundError, PermissionError) as e:
+        print(f"Error loading chat_template.html: {e}")
+        filesend = 'internal template'
     except Exception as e:
-        original_print(f"Error loading chat template: {e}")
+        print(f"Unexpected error loading chat_template.html: {e}")
+        filesend = 'internal template'
+
+    if filesend == 'internal template':
         # Fallback to a default template
         html_content = """
     <!DOCTYPE html>
@@ -372,7 +378,7 @@ async def chat_page_handler(request):
     </body>
     </html>
     """
-
+    print(f"Serving {filesend} to {request.remote}")
     return web.Response(text=html_content, content_type='text/html')
 
 async def start_server():
@@ -451,12 +457,23 @@ async def monitor_log(log_file):
                                         speaker_part = speaker_part.strip()
                                         message = url2word(message).strip()
                                         messageorg = message
+
                                         first_name = None
+                                        ignore_match = False
+                                        if speaker_part not in name_cache:
+                                            for ignore_item in IgnoreList:
+                                                if ignore_item.endswith('*'):
+                                                    if speaker_part.lower().startswith(ignore_item[:-1].lower()):
+                                                        ignore_match = True
+                                                        break
+                                                elif speaker_part.lower() == ignore_item.lower():
+                                                    ignore_match = True
+                                                    break
 
                                         # Handle IgnoreList and speaker name extraction
                                         if speaker_part in name_cache:
                                             first_name = name_cache[speaker_part]
-                                        elif speaker_part.lower() not in IgnoreList:
+                                        elif not ignore_match:
                                             if '(' in speaker_part and ')' in speaker_part:
                                                 speaker = speaker_part.split('(')[1].split(')')[0].strip()
                                                 first_name = speaker.split('.')[0].capitalize()
@@ -703,7 +720,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 1.45 Beta by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.46 Beta by Jara Lowell")
 
     # Start the PyQt5 application event loop
     sys.exit(app.exec_())
