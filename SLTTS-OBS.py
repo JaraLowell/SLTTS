@@ -8,6 +8,7 @@ import time
 import pygame
 import regex as re
 from edge_tts import Communicate
+from edge_tts import list_voices
 import gc
 import unicodedata
 from configparser import ConfigParser
@@ -83,6 +84,18 @@ def emoji_to_word(emoji_char, _):
     """Convert an emoji to its descriptive word."""
     return emoji.demojize(emoji_char).replace(":", "").replace("_", " ")
 
+def url2word(message):
+    # Simplify Second Life map URLs
+    message = re.sub(r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+', lambda match: match.group(1).replace('%20', ' '), message)
+
+    # Replace Second Life agent or group links with "Second Life Link"
+    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/(about|displayname)', lambda m: f"[{m.group(1).capitalize()} Link]", message)
+
+    # Simplify general URLs to their domain
+    message = re.sub(r'(https?://(?:www\.)?([^/\s]+)[^\s]*)', r'\2 link', message)
+        
+    return message
+
 def spell_check_message(message):
     global Enable_Spelling_Check, tool, slang_replacements
     if not message:
@@ -99,15 +112,6 @@ def spell_check_message(message):
 
     # Replace L$ with Linden Dollars
     message = re.sub(r"\bL\$", "Linden dollars", message, flags=re.IGNORECASE)
-
-    # Simplify Second Life map URLs
-    message = re.sub(r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+', lambda match: match.group(1).replace('%20', ' '), message)
-
-    # Replace Second Life agent or group links with "Second Life Link"
-    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/about', lambda m: f"{m.group(1).capitalize()} Link", message)
-
-    # Simplify general URLs to their domain
-    message = re.sub(r'(https?://(?:www\.)?([^/\s]+)[^\s]*)', r'\2 link', message)
 
     # Replace hyphen with "minus" or space based on context
     message = re.sub(r'(?<=\d)-(?=\d|\=)', ' minus ', message)
@@ -169,6 +173,14 @@ def create_default_config(file_path):
             config.write(config_file)
         return True
     return False
+
+async def get_voices(language=None):
+    all_voices = await list_voices()
+    filtered_voices = [
+        {"name": v['ShortName'], "gender": v['Gender'], "language": v['Locale']}
+        for v in all_voices if language == 'all' or language is None or v['Locale'] == language
+    ]
+    return filtered_voices
 
 async def speak_text(text2say):
     """Use Edge TTS to speak the given text."""
@@ -271,7 +283,12 @@ async def sse_handler(request):
 
 async def chat_page_handler(request):
     """Serve the chat page with SSE integration."""
-    html_content = """
+    try:
+        with open("chat_template.html", "r", encoding="utf-8") as file:
+            html_content = file.read()
+    except FileNotFoundError:
+        # Fallback to a default template
+        html_content = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -349,6 +366,7 @@ async def chat_page_handler(request):
     </body>
     </html>
     """
+
     return web.Response(text=html_content, content_type='text/html')
 
 async def start_server():
@@ -425,7 +443,7 @@ async def monitor_log(log_file):
                                         timestamp, rest = line.split(']', 1)
                                         speaker_part, message = rest.split(':', 1)
                                         speaker_part = speaker_part.strip()
-                                        message = message.strip()
+                                        message = url2word(message).strip()
                                         messageorg = message
                                         first_name = None
 
@@ -504,7 +522,7 @@ async def monitor_log(log_file):
                                                 await speak_text(to_speak)
                                                 last_chat = time.time()
                                             elif messageorg:
-                                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] NO TTS in msg! {first_name}: {messageorg}")
+                                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {first_name}: {messageorg}")
                                                 if not OBSChatFiltered:
                                                     await update_chat(f"{first_name}: {messageorg}")
                                                 last_chat = time.time()
@@ -520,9 +538,10 @@ async def monitor_log(log_file):
                                             await update_chat(last_user + ' ' + message)
                                             await speak_text(message)
                                     else:
-                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED No Timestamp!: {line.strip()}")
+                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {url2word(line).strip()}")
                                 except ValueError:
-                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] ERROR! Could not parse line: {line.strip()}")
+                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {url2word(line).strip()}")
+                            await asyncio.sleep(0.2) # Qt5 update_display might crash if we spam it too fast
                 except FileNotFoundError:
                     print(f"Log file not found: {log_file}")
                 except IOError as e:
@@ -607,6 +626,7 @@ if __name__ == "__main__":
     IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list').split(',')]
     OBSChatFiltered = config.getboolean('Settings', 'obs_chat_filtered')
     EdgeVoice = config.get('Settings', 'edge_tts_llm')
+    # all_voices = asyncio.run(get_voices()) # Fetch all voices
 
     pygame.mixer.music.set_volume(config.getint('Settings', 'volume', fallback=75) / 100) # Set default volume to 75%
 

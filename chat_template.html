@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Chat</title>
+    <style>
+        body {
+            font-family: Ubuntu, sans-serif;
+            font-size: 19px;
+            background-color: rgba(0, 0, 0, 0);
+            color: white;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh; /* Full viewport height */
+            width: 100vw; /* Full viewport width */
+        }
+        #chat-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; /* Align messages at the bottom */
+            height: 100%; /* Full height of the body */
+            width: 100%; /* Full width of the body */
+            padding: 10px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        .chat-line {
+            animation: fadeout 20s forwards;
+            padding-left: 8px; /* Padding inside the box */
+            margin-bottom: 2px; /* Space between chat lines */
+            color: white; /* Text color */
+            display: inline-block; /* Make the box wrap around the text */
+            max-width: 100%; /* Optional: Limit the width of the box to 80% of the container */
+            word-wrap: break-word; /* Ensure long words or URLs wrap to the next line */
+            text-shadow: -1px -1px 0 #00000080, 1px -1px 0 #00000080, -1px 1px 0 #00000080, 1px 1px 0 #00000080, 1px 1px 1px #000000, 0 0 1em #000000, 0 0 0.2em #000000;
+            transition: transform 0.5s ease, opacity 0.5s ease;
+            -webkit-filter: grayscale(100%);
+            filter: grayscale(100%);
+        }
+        @keyframes fadeout {
+            0% { opacity: 1; } /* Fully visible */
+            66.67% { opacity: 1; } /* Remain fully visible for 10 seconds (2/3 of 15 seconds) */
+            100% { opacity: 0; } /* Fade out over the last 5 seconds */
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container"></div>
+        <script>
+            const chatContainer = document.getElementById('chat-container');
+            const eventSource = new EventSource('/sse');
+            eventSource.onmessage = function(event) {
+                const newMessages = document.createElement('div');
+                newMessages.innerHTML = event.data;
+                Array.from(newMessages.children).forEach(child => {
+                    const messageLength = child.textContent.length;
+                    const fadeoutDuration = Math.min(60, Math.max(15, messageLength / 9));
+                    child.style.animation = `fadeout ${fadeoutDuration}s forwards`;
+                    child.addEventListener('animationend', () => {
+                        chatContainer.removeChild(child);
+                    });
+                    chatContainer.appendChild(child);
+                    if (chatContainer.children.length > 20) {
+                        chatContainer.removeChild(chatContainer.firstChild);
+                    }
+                });
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            };
+            eventSource.onerror = function() {
+                console.error("SSE connection lost. Attempting to reconnect...");
+            };
+        </script>
+</body>
+</html>

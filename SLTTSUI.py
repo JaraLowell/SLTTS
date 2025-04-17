@@ -76,6 +76,7 @@ class MainWindow(QtWidgets.QWidget):
         # Terminal-like display
         self.text_display = QtWidgets.QTextEdit(self)
         self.text_display.setReadOnly(True)
+        self.text_display.setTextInteractionFlags(QtCore.Qt.TextBrowserInteraction)
         self.layout.addWidget(self.text_display)
 
         # Buttons and controls
@@ -173,10 +174,16 @@ class MainWindow(QtWidgets.QWidget):
         self.update_display(f"Unfiltered or corrected chat to OBS page {status}.")
 
     def update_display(self, message):
-        message = message.replace("&#x27;", "'")
-        message = message.replace("&quot;", '"')
-        message = message.replace("&gt;", ">")
-        self.text_display.append(message)
+        message = message.replace("&#x27;", "'").replace("&quot;", '"').replace("&gt;", ">")
+        if 'IGNORED!' in message:
+            message = message.replace("] IGNORED!", "]<font color='#ff9d9d'>")
+            message += "</font><font color='#dddddd'> </font>"
+
+        # self.text_display.append(message)
+        cursor = self.text_display.textCursor()
+        cursor.movePosition(QtGui.QTextCursor.End)
+        cursor.insertHtml(message + "<br>")
+        self.text_display.setTextCursor(cursor)
         '''
         # Check if the number of lines exceeds 1000
         if self.text_display.document().blockCount() > 1000:
@@ -189,7 +196,6 @@ class MainWindow(QtWidgets.QWidget):
             self.text_display.setUpdatesEnabled(True)
         '''
         self.text_display.moveCursor(QtGui.QTextCursor.End)
-        self.text_display.ensureCursorVisible()
 
     def change_volume(self, value):
         self.global_config.set('Settings', 'volume', str(value))
