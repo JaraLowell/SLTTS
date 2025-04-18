@@ -6,6 +6,9 @@ import sys
 import os
 # Set QT_PLUGIN_PATH if running as a PyInstaller executable
 if getattr(sys, 'frozen', False):  # Check if running as a PyInstaller executable
+    custom_tmpdir = os.path.join(os.getcwd(), "data")
+    os.environ['PYINSTALLER_TEMP'] = custom_tmpdir
+
     qt_plugin_path = os.path.join(sys._MEIPASS, 'PyQt5', 'Qt', 'plugins')
     os.environ['QT_PLUGIN_PATH'] = qt_plugin_path
 
