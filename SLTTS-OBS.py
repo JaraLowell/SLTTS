@@ -6,9 +6,6 @@ import sys
 import os
 # Set QT_PLUGIN_PATH if running as a PyInstaller executable
 if getattr(sys, 'frozen', False):  # Check if running as a PyInstaller executable
-    custom_tmpdir = os.path.join(os.getcwd(), "data")
-    os.environ['PYINSTALLER_TEMP'] = custom_tmpdir
-
     qt_plugin_path = os.path.join(sys._MEIPASS, 'PyQt5', 'Qt', 'plugins')
     os.environ['QT_PLUGIN_PATH'] = qt_plugin_path
 
@@ -564,9 +561,17 @@ async def monitor_log(log_file):
                                             await update_chat(last_user + ' ' + message)
                                             await speak_text(message)
                                     else:
-                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {url2word(line).strip()}")
+                                        rest = line.strip()
+                                        match = re.search(r'\d{2}\]\s*(.*)', line)
+                                        if match:
+                                            rest = match.group(1).strip()
+                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {url2word(rest).strip()}")
                                 except ValueError:
-                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {url2word(line).strip()}")
+                                    rest = line.strip()
+                                    match = re.search(r'\d{2}\]\s*(.*)', line)
+                                    if match:
+                                        rest = match.group(1).strip()
+                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {url2word(rest).strip()}")
                             await asyncio.sleep(0.2) # Qt5 update_display might crash if we spam it too fast
                 except FileNotFoundError:
                     print(f"Log file not found: {log_file}")
