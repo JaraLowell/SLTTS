@@ -15,11 +15,14 @@ Make sure to pip install the needed libraries:
 * PyQt5 
 * emoji
 
-Then edit line 180, to reflect where your chat.log file is located.
+Then config.ini, to reflect where your chat.log file is located.
 * log_file_path = r"D:\SecondLife\Logs\sl_resident\chat.txt"
-To reflect where your log is
+  - To reflect where your log is
 
 Setting up your viewer:
-* In Preferences under Privacy, find Logs and Transcripts. There Enable save nearby chat trasnscripts. And make sure it set to Log and transcripts.
-* Under General enable Usernames, and View Display names. And make sure to disable Lecgacy names instead of usernames.
-* Now under Network & Files, in the Directory tab. You can see where the Conversation logs are stored.
+* Check where your logs are
+  - You can find this in preferences under Network & Files, then the Directories tab. Conversation logs location.
+* Check you log local chat
+  - You can find this in preferences under Privacy, then Logs & Transcripts. Make sure the Save nearby chat transcript is turned on and you have Log and transcripts enabled.
+* Legacy names vs Display names. The program amuses legacy names or if both n in passes the one that readable and can be spoken by TTS. If you only log Display names, some text lies might not be spoken due the name being gibberish and unspeakable.
+  - So under preferences and then General make sure you have both Username and view display Names both on.
