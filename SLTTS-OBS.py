@@ -686,8 +686,15 @@ if __name__ == "__main__":
         window.start_button.setText("Start Log Reading")
         window.start_button.setStyleSheet("color: #9d9d9d;")
 
+    last_toggle_time = 0
     def toggle_monitoring():
         """Toggle monitoring based on the button state."""
+        global last_toggle_time
+        current_time = time.time()
+        if current_time - last_toggle_time < 3:  # Check if 3 seconds have passed
+            return
+
+        last_toggle_time = current_time
         if window.start_button.text() == "Start Log Reading":
             start_monitoring_ui()
         else:
@@ -720,7 +727,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 1.46 Beta by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.47 Beta by Jara Lowell")
 
     # Start the PyQt5 application event loop
     sys.exit(app.exec_())
