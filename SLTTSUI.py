@@ -100,6 +100,10 @@ class MainWindow(QtWidgets.QWidget):
         if self.global_config.getboolean('Settings', 'obs_chat_filtered'):
             self.obs_filter_button.setStyleSheet("color: #00c983;")
 
+        self.test_button = QtWidgets.QPushButton("Test TTS", self)
+        self.test_button.clicked.connect(self.toggle_test_reading)
+        self.button_layout.addWidget(self.test_button)
+
         self.layout.addLayout(self.button_layout)
 
         # Volume slider
@@ -150,6 +154,9 @@ class MainWindow(QtWidgets.QWidget):
     def toggle_log_reading(self):
         tmp = True
         # self.update_display("Toggled log reading.")
+
+    def toggle_test_reading(self):
+        tmp = True
 
     def toggle_spelling_check(self):
         current_value = self.global_config.getboolean('Settings', 'enable_spelling_check', fallback=True)

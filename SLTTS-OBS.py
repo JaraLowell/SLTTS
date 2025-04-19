@@ -431,6 +431,7 @@ async def monitor_log(log_file):
     last_mod_time = os.path.getmtime(log_file)
     last_gc_time = time.time()
     name_cache = {}
+    iswarned = False
 
     try:
         while readloop:
@@ -451,6 +452,11 @@ async def monitor_log(log_file):
                     with open(log_file, 'r', encoding='utf-8') as file:
                         file.seek(last_position)  # Seek to the last known position
                         new_lines = file.readlines()
+                        if new_lines > 50000 and not iswarned:
+                            print("Warning: Log file is over 50,000 lines. This may cause performance issues.")
+                            logging.warning("Log file is over 50,000 lines. This may cause performance issues.")
+                            iswarned = True
+                            await asyncio.sleep(0.3)
                         last_position = file.tell()  # Update the last position after reading
 
                         for line in new_lines:
@@ -655,6 +661,11 @@ def stop_monitoring():
         monitor_loop.stop()  # Stop the event loop
         monitor_loop = None
 
+async def speak_test_message():
+    """Speak a test message."""
+    test_message = "This is a Test message from the Second Life Chat to Speech program."
+    await speak_text(test_message)
+
 if __name__ == "__main__":
     if create_default_config('config.ini'):
         logging.error("Default config.ini created. Please edit it with your settings.")
@@ -735,6 +746,9 @@ if __name__ == "__main__":
     window.log_file_path_input.textChanged.connect(lambda value: update_global("log_file_path", value))
     window.EdgeVoice_input.textChanged.connect(lambda value: update_global("EdgeVoice", value))
     window.volume_changed.connect(lambda value: update_volume(value))
+
+    # speak_text("Starting up! Monitoring log file...")
+    window.test_button.clicked.connect(lambda: asyncio.run(speak_test_message()))
 
     # Override the print function to append to window.text_display
     original_print = print  # Keep a reference to the original print function
