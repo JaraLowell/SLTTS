@@ -176,28 +176,31 @@ class MainWindow(QtWidgets.QWidget):
         self.update_display(f"Unfiltered or corrected chat to OBS page {status}.")
 
     def update_display(self, message):
-        message = message.replace("&#x27;", "'").replace("&quot;", '"').replace("&gt;", ">")
-        if 'IGNORED!' in message:
-            message = message.replace("] IGNORED!", "]<font color='#ff9d9d'>")
-            message += "</font><font color='#dddddd'> </font>"
+        try:
+            message = message.replace("&#x27;", "'").replace("&quot;", '"').replace("&gt;", ">")
+            if 'IGNORED!' in message:
+                message = message.replace("] IGNORED!", "]<font color='#ff9d9d'>")
+                message += "</font><font color='#dddddd'> </font>"
 
-        # self.text_display.append(message)
-        cursor = self.text_display.textCursor()
-        cursor.movePosition(QtGui.QTextCursor.End)
-        cursor.insertHtml(message + "<br>")
-        self.text_display.setTextCursor(cursor)
-        '''
-        # Check if the number of lines exceeds 1000
-        if self.text_display.document().blockCount() > 1000:
-            self.text_display.setUpdatesEnabled(False) # Temporarily disable updates to prevent visual jumping
+            # self.text_display.append(message)
             cursor = self.text_display.textCursor()
-            cursor.movePosition(QtGui.QTextCursor.Start)  # Move to the start of the document
-            cursor.select(QtGui.QTextCursor.BlockUnderCursor)  # Select the first line
-            cursor.removeSelectedText()  # Remove the selected text
-            cursor.deleteChar()  # Remove the newline character
-            self.text_display.setUpdatesEnabled(True)
-        '''
-        self.text_display.moveCursor(QtGui.QTextCursor.End)
+            cursor.movePosition(QtGui.QTextCursor.End)
+            cursor.insertHtml(message + "<br>")
+            self.text_display.setTextCursor(cursor)
+            '''
+            # Check if the number of lines exceeds 30
+            if self.text_display.document().blockCount() > 30:
+                self.text_display.setUpdatesEnabled(False) # Temporarily disable updates to prevent visual jumping
+                cursor = self.text_display.textCursor()
+                cursor.movePosition(QtGui.QTextCursor.Start)  # Move to the start of the document
+                cursor.select(QtGui.QTextCursor.BlockUnderCursor)  # Select the first line
+                cursor.removeSelectedText()  # Remove the selected text
+                cursor.deleteChar()  # Remove the newline character
+                self.text_display.setUpdatesEnabled(True)
+            '''
+            self.text_display.moveCursor(QtGui.QTextCursor.End)
+        except Exception as e:
+            print(f"Error updating display: {e}")
 
     def change_volume(self, value):
         self.global_config.set('Settings', 'volume', str(value))

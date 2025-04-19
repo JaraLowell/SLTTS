@@ -4,6 +4,10 @@
 # Needs > pip install edge-tts language_tool_python asyncio regex pygame
 import sys
 import os
+import logging
+logging.basicConfig(filename='sltts.log', level=logging.WARN, format='%(asctime)s : %(message)s', datefmt='%m-%d %H:%M', filemode='w')
+logging.error("Startin Up")
+
 # Set QT_PLUGIN_PATH if running as a PyInstaller executable
 if getattr(sys, 'frozen', False):  # Check if running as a PyInstaller executable
     qt_plugin_path = os.path.join(sys._MEIPASS, 'PyQt5', 'Qt', 'plugins')
@@ -133,7 +137,7 @@ def spell_check_message(message):
                 import language_tool_python
                 tool = language_tool_python.LanguageTool('en-US')
             except ImportError as e:
-                print(f"Error importing language_tool_python: {e}")
+                logging.error(f"Error importing language_tool_python: {e}")
 
         exceptions = {"Gor", "Kurrii", "Tal", "Gorean"}
         matches = tool.check(message)
@@ -187,9 +191,11 @@ async def get_voices(language=None):
     ]
     return filtered_voices
 
+output_file_counter = 0
+
 async def speak_text(text2say):
     """Use Edge TTS to speak the given text."""
-    global is_playing, EdgeVoice
+    global is_playing, EdgeVoice, output_file_counter
 
     # Wait until the current audio finishes
     while is_playing:
@@ -199,11 +205,12 @@ async def speak_text(text2say):
 
     try:
         # Generate and save the audio file
-        output_file = "output.mp3"
+        output_file = f"output{output_file_counter}.mp3"
+        output_file_counter = (output_file_counter + 1) % 3
         try:
             await Communicate(text = text2say, voice=EdgeVoice, rate = '+8%', pitch = '+0Hz').save(output_file)
         except Exception as e:
-            print(f"Error generating audio: {e}")
+            logging.error(f"Error generating audio: {e}")
             return
 
         # Play the audio file
@@ -262,24 +269,25 @@ async def sse_handler(request):
                     await response.write(f"data: {messages_html}\n\n".encode('utf-8'))
                     chat_messages.clear()  # Clear the sent messages
                 except (ConnectionResetError, asyncio.CancelledError):
-                    print("Client disconnected.")
+                    logging.error("Client disconnected while sending SSE.")
                     break  # Exit the loop if the client disconnects
 
             # Send a keep-alive message every 5 seconds
             try:
                 await response.write(":\n\n".encode('utf-8'))
             except (ConnectionResetError, asyncio.CancelledError):
-                print("Client disconnected.")
+                logging.error("Client disconnected while sending keep-alive.")
                 break
 
     except asyncio.CancelledError:
-        print("SSE handler task was cancelled.")
+        logging.error("SSE handler task was cancelled.")
     except Exception as e:
-        print(f"Error in SSE handler: {e}")
+        logging.error(f"Error in SSE handler: {e}")
     finally:
         try:
             await response.write_eof()
         except ConnectionResetError:
+            logging.error("Connection reset while closing response stream.")
             pass
 
     # Close the response stream
@@ -292,10 +300,10 @@ async def chat_page_handler(request):
         with open("chat_template.html", "r", encoding="utf-8") as file:
             html_content = file.read()
     except (UnicodeDecodeError, FileNotFoundError, PermissionError) as e:
-        print(f"Error loading chat_template.html: {e}")
+        logging.error(f"Error loading chat_template.html: {e}")
         filesend = 'internal template'
     except Exception as e:
-        print(f"Unexpected error loading chat_template.html: {e}")
+        logging.error(f"Unexpected error loading chat_template.html: {e}")
         filesend = 'internal template'
 
     if filesend == 'internal template':
@@ -394,18 +402,19 @@ async def start_server():
             site = web.TCPSite(runner, 'localhost', port)
             await site.start()
             print(f"OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
+            logging.warning(f"OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
             break
         except OSError as e:
             if e.errno == 98 or e.errno == 10048:  # Port already in use
-                print(f"Port {port} is already in use. Trying port {port + 10}...")
+                logging.error(f"Port {port} is already in use. Trying port {port + 10}...")
                 port += 10
             else:
-                print(f"Error starting server: {e}")
+                logging.error(f"Error starting server: {e}")
                 raise
 
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
-    await speak_text("Starting up! Monitoring log file...")
+    # await speak_text("Starting up! Monitoring log file...")
     global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop
 
     # Start at the end of the file
@@ -416,6 +425,7 @@ async def monitor_log(log_file):
             last_position = file.tell()
     else:
         print(f"Log file not found: {log_file}")
+        logging.error(f"Log file not found: {log_file}")
         return
 
     last_mod_time = os.path.getmtime(log_file)
@@ -522,7 +532,8 @@ async def monitor_log(log_file):
                                                 messageorg = messageorg[10:].strip()
 
                                             message = spell_check_message(message)
-
+                                            if len(message) < 2:
+                                                message = ''
                                             if last_message == message:
                                                 message = ''
 
@@ -572,14 +583,16 @@ async def monitor_log(log_file):
                                     if match:
                                         rest = match.group(1).strip()
                                     print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {url2word(rest).strip()}")
-                            await asyncio.sleep(0.2) # Qt5 update_display might crash if we spam it too fast
+                            await asyncio.sleep(0.3) # Qt5 update_display might crash if we spam it too fast
                 except FileNotFoundError:
-                    print(f"Log file not found: {log_file}")
+                    logging.error(f"Log file not found: {log_file}")
                 except IOError as e:
-                    print(f"Error reading log file: {e}")
-
+                    logging.error(f"Error reading log file IO Error: {e}")
+                except Exception as e:
+                    logging.error(f"Error reading log file Unexpected error: {e}")
             await asyncio.sleep(1)
     except Exception as e:
+        logging.error(f"Error in monitor_log: {e}")
         print(f"Error while monitoring log file: {e}")
     finally:
         print("Stopped monitoring log file.")
@@ -599,10 +612,10 @@ def load_slang_replacements(file_path="slangreplce.json"):
             try:
                 return json.load(file)
             except json.JSONDecodeError as e:
-                print(f"Error loading slang replacements: {e}")
+                logging.error(f"Error loading slang replacements: {e}")
                 return {}
     else:
-        print(f"Slang replacements file not found: {file_path}")
+        logging.error(f"Slang replacements file not found: {file_path}")
         return {}
 
 def run_server_in_background():
@@ -617,7 +630,7 @@ def start_monitoring(log_file_path):
     global monitor_task, monitor_loop
 
     if monitor_task is not None:
-        original_print("Log monitoring is already running.")
+        logging.error("Log monitoring is already running.")
         return
 
     monitor_loop = asyncio.new_event_loop()
@@ -644,7 +657,7 @@ def stop_monitoring():
 
 if __name__ == "__main__":
     if create_default_config('config.ini'):
-        print("Default config.ini created. Please edit it with your settings.")
+        logging.error("Default config.ini created. Please edit it with your settings.")
         sys.exit(0)
 
     config = ConfigParser()
@@ -683,7 +696,7 @@ if __name__ == "__main__":
             window.start_button.setText("Stop Log Reading")
             window.start_button.setStyleSheet("color: #e67a7f;")
         else:
-            print(f"Log file not found: {log_file_path}")
+            logging.error(f"Abbreviation file not found: {log_file_path}")
 
     def stop_monitoring_ui():
         """Stop monitoring from the UI."""
@@ -738,4 +751,7 @@ if __name__ == "__main__":
     print("Second Life Chat log to Speech version 1.47 Beta by Jara Lowell")
 
     # Start the PyQt5 application event loop
-    sys.exit(app.exec_())
+    try:
+        sys.exit(app.exec_())
+    except Exception as e:
+        logging.error(f"Error starting the PyQt5 application: {e}")
