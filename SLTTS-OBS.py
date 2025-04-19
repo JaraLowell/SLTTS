@@ -762,7 +762,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 1.47 Beta by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.4 Beta 8 by Jara Lowell")
 
     # Start the PyQt5 application event loop
     try:
