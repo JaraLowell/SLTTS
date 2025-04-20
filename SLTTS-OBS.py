@@ -452,7 +452,7 @@ async def monitor_log(log_file):
                     with open(log_file, 'r', encoding='utf-8') as file:
                         file.seek(last_position)  # Seek to the last known position
                         new_lines = file.readlines()
-                        if new_lines > 50000 and not iswarned:
+                        if len(new_lines) > 50000 and not iswarned:
                             print("Warning: Log file is over 50,000 lines. This may cause performance issues.")
                             logging.warning("Log file is over 50,000 lines. This may cause performance issues.")
                             iswarned = True
