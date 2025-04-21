@@ -5,7 +5,7 @@
 import sys
 import os
 import logging
-logging.basicConfig(filename='sltts.log', level=logging.WARN, format='%(asctime)s : %(message)s', datefmt='%m-%d %H:%M', filemode='w')
+logging.basicConfig(filename='sltts.log', level=logging.DEBUG, format='%(asctime)s : %(message)s', datefmt='%m-%d %H:%M', filemode='w')
 logging.error("Startin Up")
 
 # Set QT_PLUGIN_PATH if running as a PyInstaller executable
@@ -19,7 +19,6 @@ import pygame
 import regex as re
 from edge_tts import Communicate
 from edge_tts import list_voices
-import gc
 import unicodedata
 from configparser import ConfigParser
 from aiohttp import web
@@ -60,6 +59,7 @@ last_user = None
 last_chat = 0
 tool = None
 readloop = False
+play_volume = 0.75  # Default volume
 
 def clean_name(name):
     # Lets check if only one language is used in the name
@@ -415,7 +415,7 @@ async def start_server():
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
     # await speak_text("Starting up! Monitoring log file...")
-    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop
+    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume
 
     # Start at the end of the file
     last_position = 0
@@ -429,20 +429,12 @@ async def monitor_log(log_file):
         return
 
     last_mod_time = os.path.getmtime(log_file)
-    last_gc_time = time.time()
     name_cache = {}
     iswarned = False
 
     try:
         while readloop:
-            current_time = time.time()
             current_mod_time = os.path.getmtime(log_file)
-
-            # Perform garbage collection every 5 minutes
-            if current_time - last_gc_time >= 300:
-                gc.collect()
-                last_gc_time = current_time
-
             # Check if the file has been modified
             if current_mod_time != last_mod_time:
                 last_mod_time = current_mod_time
@@ -525,22 +517,24 @@ async def monitor_log(log_file):
                                                 isrepat = False
                                             else:
                                                 isrepat = True
+
                                             if message.startswith("/me"):
                                                 message = message[3:].strip()
                                                 messageorg = messageorg[3:].strip()
                                                 isemote = True
                                                 isrepat = False
-                                            if message.startswith("shouts: "):
+                                            elif message.startswith("shouts: "):
                                                 message = message[8:].strip()
                                                 messageorg = messageorg[8:].strip()
-                                            if message.startswith("whispers: "):
+                                            elif message.startswith("whispers: "):
                                                 message = message[10:].strip()
                                                 messageorg = messageorg[10:].strip()
 
                                             message = spell_check_message(message)
                                             if len(message) < 2:
                                                 message = ''
-                                            if last_message == message:
+
+                                            if last_message == message and time.time() - last_chat < 121:
                                                 message = ''
 
                                             if message:
@@ -559,7 +553,8 @@ async def monitor_log(log_file):
                                                     print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
 
                                                 await update_chat(to_cc)
-                                                await speak_text(to_speak)
+                                                if play_volume > 0:
+                                                    await speak_text(to_speak)
                                                 last_chat = time.time()
                                             elif messageorg:
                                                 print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {first_name}: {messageorg}")
@@ -576,7 +571,8 @@ async def monitor_log(log_file):
                                             last_message = message
                                             print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {message}")
                                             await update_chat(last_user + ' ' + message)
-                                            await speak_text(message)
+                                            if play_volume > 0:
+                                                await speak_text(message)
                                     else:
                                         rest = line.strip()
                                         match = re.search(r'\d{2}\]\s*(.*)', line)
@@ -610,7 +606,9 @@ def update_global(variable_name, value):
 
 def update_volume(value):
     """Update the volume setting."""
-    pygame.mixer.music.set_volume(value / 100)
+    global play_volume
+    play_volume = value / 100  # Convert to a percentage
+    pygame.mixer.music.set_volume(play_volume)
 
 def load_slang_replacements(file_path="slangreplce.json"):
     if os.path.exists(file_path):
@@ -683,7 +681,7 @@ if __name__ == "__main__":
     EdgeVoice = config.get('Settings', 'edge_tts_llm')
     # all_voices = asyncio.run(get_voices()) # Fetch all voices
 
-    pygame.mixer.music.set_volume(config.getint('Settings', 'volume', fallback=75) / 100) # Set default volume to 75%
+    update_volume(config.getint('Settings', 'volume', fallback=75))
 
     app = QApplication(sys.argv)
     window = MainWindow(config)
@@ -762,7 +760,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 1.4 Beta 8 by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.4 Beta 9 by Jara Lowell")
 
     # Start the PyQt5 application event loop
     try:
