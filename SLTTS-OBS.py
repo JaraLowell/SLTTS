@@ -4,14 +4,10 @@
 # Needs > pip install edge-tts language_tool_python asyncio regex pygame
 import sys
 import os
+
 import logging
 logging.basicConfig(filename='sltts.log', level=logging.DEBUG, format='%(asctime)s : %(message)s', datefmt='%m-%d %H:%M', filemode='w')
 logging.error("Startin Up")
-
-# Set QT_PLUGIN_PATH if running as a PyInstaller executable
-if getattr(sys, 'frozen', False):  # Check if running as a PyInstaller executable
-    qt_plugin_path = os.path.join(sys._MEIPASS, 'PyQt5', 'Qt', 'plugins')
-    os.environ['QT_PLUGIN_PATH'] = qt_plugin_path
 
 import asyncio
 import time
@@ -25,8 +21,6 @@ from aiohttp import web
 from datetime import datetime
 import html
 import json
-from PyQt5.QtWidgets import QApplication
-from PyQt5 import QtCore
 from SLTTSUI import MainWindow
 import threading
 import builtins
@@ -683,7 +677,7 @@ if __name__ == "__main__":
 
     update_volume(config.getint('Settings', 'volume', fallback=75))
 
-    app = QApplication(sys.argv)
+    # app = QApplication(sys.argv)
     window = MainWindow(config)
 
     # Connect the UI's start button to start the log monitoring
@@ -695,15 +689,15 @@ if __name__ == "__main__":
     def start_monitoring_ui():
         """Start monitoring from the UI."""
         global chat_messages, slang_replacements, readloop
-        log_file_path = window.log_file_path_input.text()  # Get the log file path from the input field
+        # log_file_path = window.log_file_path_input.text()  # Get the log file path from the input field
+        log_file_path = window.log_file_path_input.get()  # Get the log file path from the input field
         if os.path.exists(log_file_path):
             readloop = True
             slang_replacements = load_slang_replacements()
             print(f"Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
-            # chat_messages.clear()
+            chat_messages.clear()
             start_monitoring(log_file_path)
-            window.start_button.setText("Stop Log Reading")
-            window.start_button.setStyleSheet("color: #e67a7f;")
+            window.start_button.configure(text="Stop Log Reading", text_color="#ff8080")
         else:
             logging.error(f"Abbreviation file not found: {log_file_path}")
 
@@ -713,8 +707,7 @@ if __name__ == "__main__":
         readloop = False
         stop_monitoring()
         chat_messages.clear()
-        window.start_button.setText("Start Log Reading")
-        window.start_button.setStyleSheet("color: #9d9d9d;")
+        window.start_button.configure(text="Start Log Reading", text_color="#d1d1d1")
 
     last_toggle_time = 0
     def toggle_monitoring():
@@ -725,7 +718,7 @@ if __name__ == "__main__":
             return
 
         last_toggle_time = current_time
-        if window.start_button.text() == "Start Log Reading":
+        if window.start_button.cget("text") == "Start Log Reading":
             start_monitoring_ui()
         else:
             stop_monitoring_ui()
@@ -733,27 +726,23 @@ if __name__ == "__main__":
     # Start the server in the background
     run_server_in_background()
 
-    # Show the UI window
-    window.show()
-
     # Connect the UI buttons to the respective functions
-    window.start_button.clicked.connect(toggle_monitoring)
-    window.spelling_check_toggled.connect(lambda value: update_global("Enable_Spelling_Check", value))
-    window.obs_filter_toggled.connect(lambda value: update_global("OBSChatFiltered", value))
-    window.ignore_list_updated.connect(lambda value: update_global("IgnoreList", value))
-    window.log_file_path_input.textChanged.connect(lambda value: update_global("log_file_path", value))
-    window.EdgeVoice_input.textChanged.connect(lambda value: update_global("EdgeVoice", value))
-    window.volume_changed.connect(lambda value: update_volume(value))
+    window.start_button.configure(command=toggle_monitoring)
+    window.spelling_check_button.configure(command=lambda: update_global("Enable_Spelling_Check", not Enable_Spelling_Check))
+    window.obs_filter_button.configure(command=lambda: update_global("OBSChatFiltered", not OBSChatFiltered))
+    window.update_ignore_list_button.configure(command=lambda: update_global("IgnoreList", window.ignore_list_input.get().split(',')))
+    window.save_config_button.configure(command=window.save_config)
+    window.volume_slider.configure(command=lambda value: update_volume(float(value)))
 
     # speak_text("Starting up! Monitoring log file...")
-    window.test_button.clicked.connect(lambda: asyncio.run(speak_test_message()))
+    window.test_button.configure(command=lambda: asyncio.run(speak_test_message()))
 
     # Override the print function to append to window.text_display
     original_print = print  # Keep a reference to the original print function
     def custom_print(*args, **kwargs):
         message = " ".join(map(str, args))  # Combine all arguments into a single string
         if 'window' in globals() and hasattr(window, 'text_display'):
-            window.update_display(html.escape(message))  # Append the message to the text_display widget
+            window.update_display(message)
 
         original_print(*args, **kwargs)  # Optionally, call the original print function
 
@@ -762,8 +751,8 @@ if __name__ == "__main__":
 
     print("Second Life Chat log to Speech version 1.4 Beta 9 by Jara Lowell")
 
-    # Start the PyQt5 application event loop
+    # Start the window application event loop
     try:
-        sys.exit(app.exec_())
+        window.mainloop()
     except Exception as e:
-        logging.error(f"Error starting the PyQt5 application: {e}")
+        logging.error(f"Error in main loop: {e}")
