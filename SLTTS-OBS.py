@@ -53,6 +53,7 @@ last_chat = 0
 tool = None
 readloop = False
 play_volume = 0.75  # Default volume
+min_char = 2  # Default minimum characters
 
 def clean_name(name):
     # Lets check if only one language is used in the name
@@ -417,7 +418,7 @@ async def start_server():
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
     # await speak_text("Starting up! Monitoring log file...")
-    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume
+    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char
 
     # Start at the end of the file
     last_position = 0
@@ -533,7 +534,7 @@ async def monitor_log(log_file):
                                                 messageorg = messageorg[10:].strip()
 
                                             message = spell_check_message(message)
-                                            if len(message) < 2:
+                                            if len(message) < min_char:
                                                 message = ''
 
                                             if last_message == message and time.time() - last_chat < 121:
@@ -628,11 +629,32 @@ def update_global(variable_name, value):
         else:
             window.obs_filter_button.configure(text="Toggle OBS Chat Filter", text_color="#d1d1d1")
 
-def update_volume(value):
+def update_volume(value, window=None):
     """Update the volume setting."""
     global play_volume
     play_volume = value / 100  # Convert to a percentage
     pygame.mixer.music.set_volume(play_volume)
+    if window:
+        window.volume_label.configure(text=f"Output volume: {int(value)}")
+
+# Add this method to the MainWindow class
+def set_audio_device(selected_device):
+    """Set the audio device for playback."""
+    if selected_device == "Select Playback Device":
+        return
+    global play_volume, pygame
+    pygame.mixer.quit()  # Quit the mixer to reinitialize with the new device
+    pygame.mixer.init(devicename=selected_device)
+    print(f"Audio device set to: {selected_device}")
+    pygame.mixer.music.set_volume(play_volume)
+
+def update_minchar(value, window=None):
+    """Update the minimum character setting."""
+    global min_char
+    min_char = int(value)  # Convert to an integer
+    if window:
+        window.global_config.set('Settings', 'min_char', str(min_char))
+        window.characters_label.configure(text=f"Minimum Characters: {value}")
 
 def load_slang_replacements(file_path="slangreplce.json"):
     if os.path.exists(file_path):
@@ -703,6 +725,7 @@ if __name__ == "__main__":
     IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list').split(',')]
     OBSChatFiltered = config.getboolean('Settings', 'obs_chat_filtered')
     EdgeVoice = config.get('Settings', 'edge_tts_llm')
+    min_char = config.getint('Settings', 'min_char', fallback=2)
     # all_voices = asyncio.run(get_voices()) # Fetch all voices
 
     update_volume(config.getint('Settings', 'volume', fallback=75))
@@ -763,7 +786,10 @@ if __name__ == "__main__":
     window.obs_filter_button.configure(command=lambda: update_global("OBSChatFiltered", not OBSChatFiltered))
     window.update_ignore_list_button.configure(command=lambda: update_global("IgnoreList", [item.strip().lower() for item in window.ignore_list_input.get("1.0", "end").split(',')]))
     window.save_config_button.configure(command=window.save_config)
-    window.volume_slider.configure(command=lambda value: update_volume(float(value)))
+    window.volume_slider.configure(command=lambda value: update_volume(float(value), window))
+    window.characters_slider.configure(command=lambda value: update_minchar(int(value), window))
+    # audio_device_menu
+    window.audio_device_menu.configure(command=lambda value: set_audio_device(value))
   
     # speak_text("Starting up! Monitoring log file...")
     window.test_button.configure(command=lambda: asyncio.run(speak_test_message()))
@@ -780,7 +806,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 1.4 Beta 9 by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.5 Beta 0 by Jara Lowell")
 
     # Start the window application event loop
     try:
