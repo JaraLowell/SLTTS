@@ -132,6 +132,7 @@ class MainWindow(ctk.CTk):
         self.global_config.set('Settings', 'edge_tts_llm', self.edge_voice_input.get())
         self.global_config.set('Settings', 'window_geometry', self.geometry())
         self.global_config.set('Settings', 'volume', str(int(self.volume_slider.get())))
+        self.global_config.set('Settings', 'ignore_list', self.ignore_list_input.get("1.0", "end-1c").strip().lower())
         with open("config.ini", 'w') as config_file:
             self.global_config.write(config_file)
         self.update_display("Configuration saved.")

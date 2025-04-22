@@ -610,7 +610,7 @@ def update_global(variable_name, value):
         toprint = ''
         for item in value:
             toprint += item.strip() + ', '
-        print(f"Updated Ignore List: {toprint}")
+        print(f"Updated Ignore List: {toprint[:-2]}")
     if variable_name == "Enable_Spelling_Check":
         window.global_config.set('Settings', 'enable_spelling_check', str(value))
         message = "Grammar tool and spellchecker check enabled." if value else "Grammar tool and spellchecker check disabled."
@@ -761,7 +761,7 @@ if __name__ == "__main__":
     window.start_button.configure(command=toggle_monitoring)
     # window.spelling_check_button.configure(command=lambda: update_global("Enable_Spelling_Check", not Enable_Spelling_Check))
     window.obs_filter_button.configure(command=lambda: update_global("OBSChatFiltered", not OBSChatFiltered))
-    window.update_ignore_list_button.configure(command=lambda: update_global("IgnoreList", [item.strip() for item in window.ignore_list_input.get().split(',')]))
+    window.update_ignore_list_button.configure(command=lambda: update_global("IgnoreList", [item.strip().lower() for item in window.ignore_list_input.get("1.0", "end").split(',')]))
     window.save_config_button.configure(command=window.save_config)
     window.volume_slider.configure(command=lambda value: update_volume(float(value)))
   
