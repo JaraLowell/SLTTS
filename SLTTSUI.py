@@ -40,10 +40,12 @@ class MainWindow(ctk.CTk):
         self.start_button = ctk.CTkButton(self.button_frame, text="Start Log Reading", text_color="#d1d1d1", font=("Consolas", 14, "bold"), width=220, border_width=1, border_color="#888888")
         self.start_button.grid(row=0, column=0, padx=5)
 
+        '''
         self.spelling_check_button = ctk.CTkButton(self.button_frame, text="Toggle Spelling Check", text_color="#d1d1d1", font=("Consolas", 14, "bold"), command=self.toggle_spelling_check, width=220, border_width=1, border_color="#888888")
         self.spelling_check_button.grid(row=0, column=1, padx=5)
         if self.global_config.getboolean('Settings', 'enable_spelling_check', fallback=True):
             self.spelling_check_button.configure(text="Toggle Spelling Check", text_color="#80ff80")
+        '''
 
         self.obs_filter_button = ctk.CTkButton(self.button_frame, text="Toggle OBS Chat Filter", text_color="#d1d1d1", font=("Consolas", 14, "bold"), command=self.toggle_obs_filter, width=220, border_width=1, border_color="#888888")
         self.obs_filter_button.grid(row=0, column=2, padx=5)

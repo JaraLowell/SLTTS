@@ -4,7 +4,6 @@
 # Needs > pip install edge-tts language_tool_python asyncio regex pygame
 import sys
 import os
-
 import logging
 logging.basicConfig(filename='sltts.log', level=logging.DEBUG, format='%(asctime)s : %(message)s', datefmt='%m-%d %H:%M', filemode='w')
 logging.error("Startin Up")
@@ -127,12 +126,12 @@ def spell_check_message(message):
     # Perform spelling check if enabled
     if Enable_Spelling_Check:
         '''
-        # Temporarily disabled for as pyinstaller has issues with language_tool_python
-        
+        # Disabled, cant seem to get this to work with PyInstaller
+
         if tool is None:  # Check if 'tool' is already initialized
             try:
-                from language_tool_python import LanguageTool, utils
-                tool = LanguageTool('en-US')
+                import language_tool_python
+                tool = language_tool_python.LanguageTool('en-US')
             except ImportError as e:
                 logging.error(f"Error importing language_tool_python: {e}")
 
@@ -142,12 +141,13 @@ def spell_check_message(message):
             match for match in matches
             if not any(exception.lower() in match.context.lower() for exception in exceptions)
         ]
-        message = utils.correct(message, filtered_matches)
+        message = language_tool_python.utils.correct(message, filtered_matches)
 
         # Ensure exception words are capitalized
         for exception in exceptions:
             message = re.sub(rf'\b{exception.lower()}\b', exception, message, flags=re.IGNORECASE)
         '''
+
     # Remove unwanted characters that should be removed (non-speakable characters)
     forbidden_categories = ["So", "Mn", "Mc", "Me", "C", "Sk"]
     message = "".join(c for c in message if unicodedata.category(c) not in forbidden_categories)
@@ -759,7 +759,7 @@ if __name__ == "__main__":
 
     # Connect the UI buttons to the respective functions
     window.start_button.configure(command=toggle_monitoring)
-    window.spelling_check_button.configure(command=lambda: update_global("Enable_Spelling_Check", not Enable_Spelling_Check))
+    # window.spelling_check_button.configure(command=lambda: update_global("Enable_Spelling_Check", not Enable_Spelling_Check))
     window.obs_filter_button.configure(command=lambda: update_global("OBSChatFiltered", not OBSChatFiltered))
     window.update_ignore_list_button.configure(command=lambda: update_global("IgnoreList", [item.strip() for item in window.ignore_list_input.get().split(',')]))
     window.save_config_button.configure(command=window.save_config)
