@@ -611,6 +611,22 @@ def update_global(variable_name, value):
         for item in value:
             toprint += item.strip() + ', '
         print(f"Updated Ignore List: {toprint}")
+    if variable_name == "Enable_Spelling_Check":
+        window.global_config.set('Settings', 'enable_spelling_check', str(value))
+        message = "Grammar tool and spellchecker check enabled." if value else "Grammar tool and spellchecker check disabled."
+        print(message)
+        if value:
+            window.spelling_check_button.configure(text="Toggle Spelling Check", text_color="#80ff80")
+        else:
+            window.spelling_check_button.configure(text="Toggle Spelling Check", text_color="#d1d1d1")
+    if variable_name == "OBSChatFiltered":
+        window.global_config.set('Settings', 'obs_chat_filtered', str(value))
+        status = "enabled" if value else "disabled"
+        print(f"Unfiltered or corrected chat to OBS page {status}.")
+        if value:
+            window.obs_filter_button.configure(text="Toggle OBS Chat Filter", text_color="#80ff80")
+        else:
+            window.obs_filter_button.configure(text="Toggle OBS Chat Filter", text_color="#d1d1d1")
 
 def update_volume(value):
     """Update the volume setting."""
