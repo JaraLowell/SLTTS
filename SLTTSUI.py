@@ -9,7 +9,7 @@ class MainWindow(ctk.CTk):
         super().__init__()
         self.global_config = global_config  # Use the global configuration object
         self.title("Second Life TTS")
-        self.geometry(global_config.get('Settings', 'window_geometry', fallback="900x600"))
+        self.geometry(global_config.get('Settings', 'window_geometry', fallback="1024x768"))
         icon_path = os.path.join(getattr(sys, '_MEIPASS', os.path.abspath('.')), "SLTTS.ico")
         self.iconbitmap(icon_path)
         self.resizable(True, True)
@@ -27,6 +27,7 @@ class MainWindow(ctk.CTk):
         # Terminal-like display
         self.text_display = ctk.CTkTextbox(self.main_frame, wrap="word", state="disabled", font=("Consolas", 16))
         self.text_display.grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(0, 10))
+        self.text_display.tag_config("R", foreground="#ff8080")
         self.main_frame.rowconfigure(0, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
 
@@ -116,7 +117,11 @@ class MainWindow(ctk.CTk):
 
     def update_display(self, message):
         self.text_display.configure(state="normal")
-        self.text_display.insert("end", message + "\n")
+        if '] IGNORED!' in message:
+            message = message.replace("] IGNORED!", "]")
+            self.text_display.insert("end", message + "\n", "R")
+        else:
+            self.text_display.insert("end", message + "\n")
         self.text_display.configure(state="disabled")
         self.text_display.see("end")
 
@@ -127,7 +132,6 @@ class MainWindow(ctk.CTk):
     def update_ignore_list(self):
         input_text = self.ignore_list_input.get()
         self.global_config.set('Settings', 'ignore_list', input_text)
-        self.update_display(f"Ignore List updated: {input_text}")
 
     def save_config(self):
         self.global_config.set('Settings', 'log_file_path', self.log_file_path_input.get())
