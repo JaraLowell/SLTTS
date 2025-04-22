@@ -192,7 +192,12 @@ output_file_counter = 0
 
 async def speak_text(text2say):
     """Use Edge TTS to speak the given text."""
-    global is_playing, EdgeVoice, output_file_counter
+    global is_playing, EdgeVoice, output_file_counter, window
+
+    current_value = window.edge_voice_input.get()
+    if current_value != EdgeVoice:
+        EdgeVoice = current_value
+        print(f"Edge voice changed to {EdgeVoice}")
 
     # Wait until the current audio finishes
     while is_playing:
@@ -539,34 +544,34 @@ async def monitor_log(log_file):
                                                 if isrepat:
                                                     to_speak = f"{message}"
                                                     to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
-                                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {message}")
+                                                    print(f"{message}")
                                                 elif isemote:
                                                     to_speak = f"{first_name} {message}"
                                                     to_cc = f"{first_name} {message}" if OBSChatFiltered else f"{first_name} {messageorg}"
-                                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
+                                                    print(f"{to_speak}")
                                                 else:
                                                     to_speak = f"{first_name} says: {message}"
                                                     to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
-                                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {to_speak}")
+                                                    print(f"{to_speak}")
 
                                                 await update_chat(to_cc)
                                                 if play_volume > 0:
                                                     await speak_text(to_speak)
                                                 last_chat = time.time()
                                             elif messageorg:
-                                                print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {first_name}: {messageorg}")
+                                                print(f"IGNORED! {first_name}: {messageorg}")
                                                 if not OBSChatFiltered:
                                                     await update_chat(f"{first_name}: {messageorg}")
                                                 last_chat = time.time()
                                         else:
                                             last_user = None
-                                            print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {speaker_part}: {message}")
+                                            print(f"IGNORED! {speaker_part}: {message}")
                                     elif last_user is not None:
                                         message = line.strip()
                                         message = spell_check_message(message)
                                         if last_message != message and message:
                                             last_message = message
-                                            print(f"[{time.strftime('%H:%M:%S', time.localtime())}] {message}")
+                                            print(f"{message}")
                                             await update_chat(last_user + ' ' + message)
                                             if play_volume > 0:
                                                 await speak_text(message)
@@ -575,13 +580,13 @@ async def monitor_log(log_file):
                                         match = re.search(r'\d{2}\]\s*(.*)', line)
                                         if match:
                                             rest = match.group(1).strip()
-                                        print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {url2word(rest).strip()}")
+                                        print(f"IGNORED! {url2word(rest).strip()}")
                                 except ValueError:
                                     rest = line.strip()
                                     match = re.search(r'\d{2}\]\s*(.*)', line)
                                     if match:
                                         rest = match.group(1).strip()
-                                    print(f"[{time.strftime('%H:%M:%S', time.localtime())}] IGNORED! {url2word(rest).strip()}")
+                                    print(f"IGNORED! {url2word(rest).strip()}")
                             await asyncio.sleep(0.3) # Qt5 update_display might crash if we spam it too fast
                 except FileNotFoundError:
                     logging.error(f"Log file not found: {log_file}")
@@ -708,7 +713,8 @@ if __name__ == "__main__":
             start_monitoring(log_file_path)
             window.start_button.configure(text="Stop Log Reading", text_color="#ff8080")
         else:
-            logging.error(f"Abbreviation file not found: {log_file_path}")
+            logging.error(f"Chat Log file not found: {log_file_path}")
+            print(f"Chat Log file not found: {log_file_path}")
 
     def stop_monitoring_ui():
         """Stop monitoring from the UI."""
@@ -742,7 +748,7 @@ if __name__ == "__main__":
     window.update_ignore_list_button.configure(command=lambda: update_global("IgnoreList", [item.strip() for item in window.ignore_list_input.get().split(',')]))
     window.save_config_button.configure(command=window.save_config)
     window.volume_slider.configure(command=lambda value: update_volume(float(value)))
-
+  
     # speak_text("Starting up! Monitoring log file...")
     window.test_button.configure(command=lambda: asyncio.run(speak_test_message()))
 

@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import customtkinter as ctk
 from tkinter import messagebox
 from configparser import ConfigParser
@@ -28,6 +29,7 @@ class MainWindow(ctk.CTk):
         self.text_display = ctk.CTkTextbox(self.main_frame, wrap="word", state="disabled", font=("Consolas", 16))
         self.text_display.grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(0, 10))
         self.text_display.tag_config("R", foreground="#ff8080")
+        self.text_display.tag_config("T", foreground="#a1a1a1")
         self.main_frame.rowconfigure(0, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
 
@@ -117,8 +119,9 @@ class MainWindow(ctk.CTk):
 
     def update_display(self, message):
         self.text_display.configure(state="normal")
-        if '] IGNORED!' in message:
-            message = message.replace("] IGNORED!", "]")
+        self.text_display.insert("end", f"[{time.strftime('%H:%M:%S', time.localtime())}] ", "T")
+        if 'IGNORED! ' in message:
+            message = message.replace("IGNORED! ", "")
             self.text_display.insert("end", message + "\n", "R")
         else:
             self.text_display.insert("end", message + "\n")
