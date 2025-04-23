@@ -93,7 +93,7 @@ def url2word(message):
     message = re.sub(r'http://maps\.secondlife\.com/secondlife/([^/]+)/\d+/\d+/\d+', lambda match: match.group(1).replace('%20', ' '), message)
 
     # Replace Second Life agent or group links with "Second Life Link"
-    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/(about|displayname)', lambda m: f"[SL {m.group(1).capitalize()} URL]", message)
+    message = re.sub(r'secondlife:///app/(agent|group)/[0-9a-fA-F\-]+/(about|displayname|inspect)', lambda m: f"[SL {m.group(1).capitalize()} URL]", message)
 
     # Simplify general URLs to their domain
     message = re.sub(r'(https?://(?:www\.)?([^/\s]+)[^\s]*)', r'\2 link', message)
@@ -478,7 +478,7 @@ async def monitor_log(log_file):
                                         isemote = False
                                         isrepat = False
                                         # Extract timestamp and message
-                                        timestamp, rest = line.split('] ', 1)
+                                        timestamp, rest = line.split(']', 1)
                                         # speaker can excist of the following formats:
                                         # [20:00:00] Firstname: Hello
                                         # [20:00:00] Firstname Hello
@@ -489,7 +489,7 @@ async def monitor_log(log_file):
                                         # [20:00:00] Display Name (Firstname): Hello
                                         # [20:00:00] Display Name (Firstname) Hello
                                         if ': ' in rest:
-                                            speaker_part, message = rest.split(': ', 1) # This fails for Radegast as when it is an emote it removes the :
+                                            speaker_part, message = rest.split(':', 1) # This fails for Radegast as when it is an emote it removes the :
                                         else:
                                             speaker_part = "Second Life"
                                             message = rest
@@ -572,11 +572,11 @@ async def monitor_log(log_file):
                                             if len(message) < min_char:
                                                 message = ''
 
-                                            if last_message == message and time.time() - last_chat < 121:
+                                            if last_message == (first_name + ':' + message) and time.time() - last_chat < 121:
                                                 message = ''
 
                                             if message:
-                                                last_message = message
+                                                last_message = first_name + ':' + message
                                                 if isrepat:
                                                     to_speak = f"{message}"
                                                     to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
