@@ -49,6 +49,7 @@ pygame.mixer.music.set_volume(0.75)  # Set volume to 50%
 is_playing = False
 last_message = None
 last_user = None
+last_voice = None
 last_chat = 0
 tool = None
 readloop = False
@@ -191,7 +192,7 @@ async def get_voices(language=None):
 
 output_file_counter = 0
 
-async def speak_text(text2say):
+async def speak_text(text2say, VoiceOverride=None):
     """Use Edge TTS to speak the given text."""
     global is_playing, EdgeVoice, output_file_counter, window
 
@@ -205,6 +206,8 @@ async def speak_text(text2say):
         await asyncio.sleep(0.25)
 
     is_playing = True  # Indicate audio is playing
+    if VoiceOverride is not None:
+        EdgeVoice = VoiceOverride
 
     try:
         # Generate and save the audio file
@@ -227,6 +230,8 @@ async def speak_text(text2say):
     finally:
         # Clean up and reset the flag
         pygame.mixer.music.unload()
+        if VoiceOverride is not None:
+            EdgeVoice = current_value
         is_playing = False
 
 # List to store chat messages for the website
@@ -418,7 +423,7 @@ async def start_server():
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
     # await speak_text("Starting up! Monitoring log file...")
-    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char
+    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char, name2voice, last_voice
 
     # Start at the end of the file
     last_position = 0
@@ -463,14 +468,33 @@ async def monitor_log(log_file):
                                         isemote = False
                                         isrepat = False
                                         # Extract timestamp and message
-                                        timestamp, rest = line.split(']', 1)
-                                        speaker_part, message = rest.split(':', 1)
+                                        timestamp, rest = line.split('] ', 1)
+                                        # speaker can excist of the following formats:
+                                        # [20:00:00] Firstname: Hello
+                                        # [20:00:00] Firstname Hello
+                                        # [20:00:00] Firstname Lastname: Hello
+                                        # [20:00:00] Firstname Lastname Hello
+                                        # [20:00:00] Display Name (Firstname.Lastname): Hello
+                                        # [20:00:00] Display Name (Firstname.Lastname) Hello
+                                        # [20:00:00] Display Name (Firstname): Hello
+                                        # [20:00:00] Display Name (Firstname) Hello
+                                        if ': ' in rest:
+                                            speaker_part, message = rest.split(': ', 1) # This fails for Radegast as when it is an emote it removes the :
+                                        else:
+                                            speaker_part = "Second Life"
+                                            message = rest
                                         speaker_part = speaker_part.strip()
                                         message = url2word(message).strip()
                                         messageorg = message
 
                                         first_name = None
                                         ignore_match = False
+
+                                        thisvoice = None
+                                        if name2voice:
+                                            if speaker_part in name2voice:
+                                                thisvoice = name2voice[speaker_part]
+
                                         if speaker_part not in name_cache:
                                             for ignore_item in IgnoreList:
                                                 if ignore_item.endswith('*'):
@@ -515,6 +539,7 @@ async def monitor_log(log_file):
                                         if first_name:
                                             if last_user != first_name:
                                                 last_user = first_name
+                                                last_voice = thisvoice
                                                 isrepat = False
                                             elif time.time() - last_chat >= 120:
                                                 isrepat = False
@@ -557,7 +582,7 @@ async def monitor_log(log_file):
 
                                                 await update_chat(to_cc)
                                                 if play_volume > 0:
-                                                    await speak_text(to_speak)
+                                                    await speak_text(to_speak, thisvoice)
                                                 last_chat = time.time()
                                             elif messageorg:
                                                 print(f"IGNORED! {first_name}: {messageorg}")
@@ -566,7 +591,12 @@ async def monitor_log(log_file):
                                                 last_chat = time.time()
                                         else:
                                             last_user = None
-                                            print(f"IGNORED! {speaker_part}: {message}")
+                                            last_voice = None
+                                            if speaker_part == "Second Life":
+                                                speaker_part = ""
+                                            else:
+                                                speaker_part = speaker_part + ": "
+                                            print(f"IGNORED! {speaker_part}{message}")
                                     elif last_user is not None:
                                         message = line.strip()
                                         message = spell_check_message(message)
@@ -575,7 +605,7 @@ async def monitor_log(log_file):
                                             print(f"{message}")
                                             await update_chat(last_user + ' ' + message)
                                             if play_volume > 0:
-                                                await speak_text(message)
+                                                await speak_text(message, last_voice)
                                     else:
                                         rest = line.strip()
                                         match = re.search(r'\d{2}\]\s*(.*)', line)
@@ -656,16 +686,16 @@ def update_minchar(value, window=None):
         window.global_config.set('Settings', 'min_char', str(min_char))
         window.characters_label.configure(text=f"Minimum Characters: {value}")
 
-def load_slang_replacements(file_path="slangreplce.json"):
-    if os.path.exists(file_path):
+def load_slang_replacements(file_path):
+    if file_path and os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as file:
             try:
                 return json.load(file)
             except json.JSONDecodeError as e:
-                logging.error(f"Error loading slang replacements: {e}")
+                logging.error(f"Error: loading file: {e}")
                 return {}
     else:
-        logging.error(f"Slang replacements file not found: {file_path}")
+        logging.error(f"Error: file not found: {file_path}")
         return {}
 
 def run_server_in_background():
@@ -738,16 +768,22 @@ if __name__ == "__main__":
     tasks = []
     monitor_task = None
     monitor_loop = None
+    slang_replacements = {}
+    name2voice = {}
 
     def start_monitoring_ui():
         """Start monitoring from the UI."""
-        global chat_messages, slang_replacements, readloop
+        global chat_messages, slang_replacements, readloop, name2voice
         # log_file_path = window.log_file_path_input.text()  # Get the log file path from the input field
         log_file_path = window.log_file_path_input.get()  # Get the log file path from the input field
         if os.path.exists(log_file_path):
             readloop = True
-            slang_replacements = load_slang_replacements()
-            print(f"Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
+            slang_replacements = load_slang_replacements("slangreplce.json")
+            if slang_replacements:
+                print(f"Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
+            name2voice = load_slang_replacements("name2voice.json")
+            if name2voice:
+                print(f"Name to voice file reading done, {len(name2voice)} replacements found and loaded.")
             chat_messages.clear()
             start_monitoring(log_file_path)
             window.start_button.configure(text="Stop Log Reading", text_color="#ff8080")
