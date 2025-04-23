@@ -1,14 +1,12 @@
-LoraLog.spec
 build/
 dist/
-DataBase/
 env/
 venv/
+__pycache__/
 *.spec
 *.psd
 tkintermapview2/__pycache__/
 *.log
 *.mp3
 config.ini
-__pycache__/SLTTSUI.cpython-310.pyc
 version_info.txt
