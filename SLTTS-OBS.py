@@ -165,6 +165,11 @@ def spell_check_message(message):
 
     return message
 
+def is_valid_voice_format(voice_name):
+    """Validate if the voice name follows the format xx-XX-NAME."""
+    pattern = r"^[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural$"
+    return bool(re.match(pattern, voice_name))
+
 def create_default_config(file_path):
     """Create a default config.ini file if it doesn't exist."""
     if not os.path.exists(file_path):
@@ -208,6 +213,11 @@ async def speak_text(text2say, VoiceOverride=None):
     is_playing = True  # Indicate audio is playing
     if VoiceOverride is not None:
         EdgeVoice = VoiceOverride
+
+    if not is_valid_voice_format(EdgeVoice):
+        print(f"Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
+        logging.error(f"Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
+        EdgeVoice = "en-US-EmmaMultilingualNeural"
 
     try:
         # Generate and save the audio file
