@@ -852,7 +852,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 1.5 Beta 0 by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.5.1, by Jara Lowell")
 
     # Start the window application event loop
     try:
