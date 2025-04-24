@@ -547,8 +547,8 @@ async def monitor_log(log_file):
 
                                         # Process the message
                                         if first_name:
-                                            if last_user != first_name:
-                                                last_user = first_name
+                                            if last_user != speaker_part:
+                                                last_user = speaker_part
                                                 last_voice = thisvoice
                                                 isrepat = False
                                             elif time.time() - last_chat >= 120:
@@ -572,11 +572,11 @@ async def monitor_log(log_file):
                                             if len(message) < min_char:
                                                 message = ''
 
-                                            if last_message == (first_name + ':' + message) and time.time() - last_chat < 121:
+                                            if last_message == (speaker_part + ':' + message) and time.time() - last_chat < 121:
                                                 message = ''
 
                                             if message:
-                                                last_message = first_name + ':' + message
+                                                last_message = speaker_part + ':' + message
                                                 if isrepat:
                                                     to_speak = f"{message}"
                                                     to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
