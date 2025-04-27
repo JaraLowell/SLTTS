@@ -98,6 +98,9 @@ def url2word(message):
     # Simplify general URLs to their domain
     message = re.sub(r'(https?://(?:www\.)?([^/\s]+)[^\s]*)', r'\2 link', message)
 
+    # Replace words longer than 64 characters with "(blank)"
+    message = ' '.join(word if len(word) <= 64 else "(blank)" for word in message.split())
+
     return message
 
 def spell_check_message(message):
@@ -118,8 +121,8 @@ def spell_check_message(message):
     message = re.sub(r"\bL\$", "Linden dollars", message, flags=re.IGNORECASE)
 
     # Replace hyphen with "minus" or space based on context
-    message = re.sub(r'(?<=\d)-(?=\d|\=)', ' minus ', message)
-    message = re.sub(r'(?<=\w)-(?=\w)', ' ', message)
+    message = re.sub(r'(?<=\d)-(?=\d|\=)', ' to ', message) # Dash denotes a sequence from-to if paced directly next to numbers like 30-40 degrees
+    message = re.sub(r'(?<=\w)-(?=\w)', '', message) # Hyphen is dropped in-between/inbetween words joining them together for correct grammar.
 
     # Replace common abbreviations v3.2 slang replacements
     for slang, replacement in slang_replacements.items():
@@ -609,6 +612,7 @@ async def monitor_log(log_file):
                                             print(f"IGNORED! {speaker_part}{message}")
                                     elif last_user is not None:
                                         message = line.strip()
+                                        message = url2word(message).strip()
                                         message = spell_check_message(message)
                                         if last_message != message and message:
                                             last_message = message
