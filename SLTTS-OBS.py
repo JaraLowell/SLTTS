@@ -158,7 +158,7 @@ def spell_check_message(message):
     message = "".join(c for c in message if unicodedata.category(c) not in forbidden_categories)
 
     # Collapse repeated characters (3 or more)
-    message = re.sub(r'([^0-9])\1{2,}', r'\1', message)
+    message = re.sub(r'([^0-9])\1{3,}', r'\1', message)
 
     if len(message) > 1:
         message = message[0].upper() + message[1:]
