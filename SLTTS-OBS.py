@@ -339,7 +339,7 @@ async def chat_page_handler(request):
         <style>
             body {
                 font-family: Ubuntu, sans-serif;
-                font-size: 19px;
+                font-size: 20px;
                 background-color: rgba(0, 0, 0, 0);
                 color: white;
                 margin: 0;
@@ -366,7 +366,7 @@ async def chat_page_handler(request):
                 display: inline-block; /* Make the box wrap around the text */
                 max-width: 100%; /* Optional: Limit the width of the box to 80% of the container */
                 word-wrap: break-word; /* Ensure long words or URLs wrap to the next line */
-                text-shadow: -1px -1px 0 #00000080, 1px -1px 0 #00000080, -1px 1px 0 #00000080, 1px 1px 0 #00000080, 1px 1px 1px #000000, 0 0 1em #000000, 0 0 0.2em #000000;
+                text-shadow: -1px -1px 2px #000000d1, 1px -1px 0 #000000d1, -1px 1px 0 #000000d1, 1px 1px 0 #000000d1, 1px 1px 1px #000000, 0 0 1em #000000, 0 0 0.2em #000000;
                 transition: transform 0.5s ease, opacity 0.5s ease;
                 -webkit-filter: grayscale(100%);
                 filter: grayscale(100%);
@@ -388,7 +388,7 @@ async def chat_page_handler(request):
                     newMessages.innerHTML = event.data;
                     Array.from(newMessages.children).forEach(child => {
                         const messageLength = child.textContent.length;
-                        const fadeoutDuration = Math.min(60, Math.max(15, messageLength / 9));
+                        const fadeoutDuration = Math.min(60, Math.max(20, messageLength / 9));
                         child.style.animation = `fadeout ${fadeoutDuration}s forwards`;
                         child.addEventListener('animationend', () => {
                             chatContainer.removeChild(child);
