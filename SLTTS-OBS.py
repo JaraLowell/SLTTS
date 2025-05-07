@@ -388,7 +388,7 @@ async def chat_page_handler(request):
                     newMessages.innerHTML = event.data;
                     Array.from(newMessages.children).forEach(child => {
                         const messageLength = child.textContent.length;
-                        const fadeoutDuration = Math.min(60, Math.max(20, messageLength / 9));
+                        const fadeoutDuration = Math.min(60, Math.max(18, messageLength / 9));
                         child.style.animation = `fadeout ${fadeoutDuration}s forwards`;
                         child.addEventListener('animationend', () => {
                             chatContainer.removeChild(child);
@@ -436,7 +436,7 @@ async def start_server():
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
     # await speak_text("Starting up! Monitoring log file...")
-    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char, name2voice, last_voice
+    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char, name2voice, last_voice, SpeakOnlyList
 
     # Start at the end of the file
     last_position = 0
@@ -502,13 +502,14 @@ async def monitor_log(log_file):
 
                                         first_name = None
                                         ignore_match = False
+                                        speak_only_match = False
 
                                         thisvoice = None
                                         if name2voice:
                                             if speaker_part in name2voice:
                                                 thisvoice = name2voice[speaker_part]
 
-                                        if speaker_part not in name_cache:
+                                        if IgnoreList and any(item.strip() for item in IgnoreList):
                                             for ignore_item in IgnoreList:
                                                 if ignore_item.endswith('*'):
                                                     if speaker_part.lower().startswith(ignore_item[:-1].lower()):
@@ -518,8 +519,23 @@ async def monitor_log(log_file):
                                                     ignore_match = True
                                                     break
 
+                                        if SpeakOnlyList and any(item.strip() for item in SpeakOnlyList):  # Ensure SpeakOnlyList is defined and not empty
+                                            original_print(f"SpeakOnlyList: {SpeakOnlyList}")
+                                            for speak_item in SpeakOnlyList:
+                                                if speak_item.endswith('*'):
+                                                    if speaker_part.lower().startswith(speak_item[:-1].lower()):
+                                                        speak_only_match = True
+                                                        break
+                                                elif speaker_part.lower() == speak_item.lower():
+                                                    speak_only_match = True
+                                                    break
+                                            if not speak_only_match:
+                                                ignore_match = True
+
                                         # Handle IgnoreList and speaker name extraction
-                                        if speaker_part in name_cache:
+                                        if ignore_match and speaker_part in name_cache:
+                                            del name_cache[speaker_part]
+                                        elif speaker_part in name_cache:
                                             first_name = name_cache[speaker_part]
                                         elif not ignore_match:
                                             if '(' in speaker_part and ')' in speaker_part:
@@ -651,6 +667,11 @@ def update_global(variable_name, value):
     globals()[variable_name] = value
     original_print(f"Updated global {variable_name} to {value}")
     # Ignore List updated:
+    if variable_name == "SpeakOnlyList":
+        toprint = ''
+        for item in value:
+            toprint += item.strip() + ', '
+        print(f"Updated Speak Only List: {toprint[:-2]}")
     if variable_name == "IgnoreList":
         toprint = ''
         for item in value:
@@ -749,6 +770,12 @@ def stop_monitoring():
         monitor_loop.stop()  # Stop the event loop
         monitor_loop = None
 
+def update_lists():
+    """Update the IgnoreList and SpeakOnlyList from the UI."""
+    print("Updating IgnoreList and SpeakOnlyList...")
+    update_global("IgnoreList", [item.strip().lower() for item in window.ignore_list_input.get("1.0", "end").split(',')])
+    update_global("SpeakOnlyList", [item.strip().lower() for item in window.onlytalk_list_input.get("1.0", "end").split(',')])
+
 async def speak_test_message():
     """Speak a test message."""
     test_message = "This is a Test message from the Second Life Chat to Speech program."
@@ -763,10 +790,11 @@ if __name__ == "__main__":
     config.read('config.ini')
 
     # Parse configuration values
-    global Enable_Spelling_Check, IgnoreList, OBSChatFiltered, EdgeVoice
+    global Enable_Spelling_Check, IgnoreList, OBSChatFiltered, EdgeVoicem, SpeakOnlyList
     log_file_path = config.get('Settings', 'log_file_path')
     Enable_Spelling_Check = config.getboolean('Settings', 'enable_spelling_check')
-    IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list').split(',')]
+    IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list', fallback='').split(',')]
+    SpeakOnlyList = [item.strip() for item in config.get('Settings', 'speak_only_list', fallback='').split(',')]
     OBSChatFiltered = config.getboolean('Settings', 'obs_chat_filtered')
     EdgeVoice = config.get('Settings', 'edge_tts_llm')
     min_char = config.getint('Settings', 'min_char', fallback=2)
@@ -826,7 +854,7 @@ if __name__ == "__main__":
             start_monitoring_ui()
         else:
             stop_monitoring_ui()
-
+    
     # Start the server in the background
     run_server_in_background()
 
@@ -834,7 +862,7 @@ if __name__ == "__main__":
     window.start_button.configure(command=toggle_monitoring)
     # window.spelling_check_button.configure(command=lambda: update_global("Enable_Spelling_Check", not Enable_Spelling_Check))
     window.obs_filter_button.configure(command=lambda: update_global("OBSChatFiltered", not OBSChatFiltered))
-    window.update_ignore_list_button.configure(command=lambda: update_global("IgnoreList", [item.strip().lower() for item in window.ignore_list_input.get("1.0", "end").split(',')]))
+    window.update_ignore_list_button.configure(command=lambda: update_lists())
     window.save_config_button.configure(command=window.save_config)
     window.volume_slider.configure(command=lambda value: update_volume(float(value), window))
     window.characters_slider.configure(command=lambda value: update_minchar(int(value), window))
@@ -856,7 +884,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 1.5.1, by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.5.2, by Jara Lowell")
 
     # Start the window application event loop
     try:

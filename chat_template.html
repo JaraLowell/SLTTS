@@ -56,7 +56,7 @@
                 newMessages.innerHTML = event.data;
                 Array.from(newMessages.children).forEach(child => {
                     const messageLength = child.textContent.length;
-                    const fadeoutDuration = Math.min(60, Math.max(20, messageLength / 9));
+                    const fadeoutDuration = Math.min(60, Math.max(18, messageLength / 9));
                     child.style.animation = `fadeout ${fadeoutDuration}s forwards`;
                     child.addEventListener('animationend', () => {
                         chatContainer.removeChild(child);

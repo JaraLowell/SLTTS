@@ -108,13 +108,21 @@ class MainWindow(ctk.CTk):
         self.ignore_list_input.insert("1.0", self.global_config.get('Settings', 'ignore_list', fallback=""))
         self.ignore_list_input.grid(row=6, column=1, sticky="ew", pady=(0, 6))
 
+        # Names allowed to speak list management
+        self.onlytalk_list_label = ctk.CTkLabel(self.main_frame, text="Only allowed to talk List\n(comma-separated):", font=("Consolas", 12, "bold"))
+        self.onlytalk_list_label.grid(row=7, column=0, sticky="nw")
+
+        self.onlytalk_list_input = ctk.CTkTextbox(self.main_frame, height=50, wrap="word")
+        self.onlytalk_list_input.insert("1.0", self.global_config.get('Settings', 'speak_only_list', fallback=""))
+        self.onlytalk_list_input.grid(row=7, column=1, sticky="ew", pady=(0, 6))
+
         # Update Ignore List button
         self.update_ignore_list_button = ctk.CTkButton(self.main_frame, text="Update Ignore List", font=("Consolas", 14, "bold"), command=self.update_ignore_list, width=220, border_width=0, border_color="#888888")
-        self.update_ignore_list_button.grid(row=7, column=0, columnspan=2, sticky="ne", pady=(2, 15), padx=(0, 3))
+        self.update_ignore_list_button.grid(row=8, column=0, columnspan=2, sticky="ne", pady=(2, 15), padx=(0, 3))
 
         # Save Config button
         self.save_config_button = ctk.CTkButton(self.main_frame, text="Save Config", font=("Consolas", 14, "bold"), command=self.save_config, width=220, border_width=0, border_color="#888888")
-        self.save_config_button.grid(row=7, column=0, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
+        self.save_config_button.grid(row=8, column=0, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
 
     def toggle_spelling_check(self):
         current_value = self.global_config.getboolean('Settings', 'enable_spelling_check', fallback=True)
@@ -141,8 +149,10 @@ class MainWindow(ctk.CTk):
         self.global_config.set('Settings', 'volume', str(int(float(value))))
 
     def update_ignore_list(self):
-        input_text = self.ignore_list_input.get()
+        input_text = self.ignore_list_input.get("1.0", "end-1c").strip().lower()
         self.global_config.set('Settings', 'ignore_list', input_text)
+        input_text = self.onlytalk_list_input.get("1.0", "end-1c").strip().lower()
+        self.global_config.set('Settings', 'speak_only_list', input_text)
 
     def save_config(self):
         self.global_config.set('Settings', 'log_file_path', self.log_file_path_input.get())
@@ -150,6 +160,7 @@ class MainWindow(ctk.CTk):
         self.global_config.set('Settings', 'window_geometry', self.geometry())
         self.global_config.set('Settings', 'volume', str(int(self.volume_slider.get())))
         self.global_config.set('Settings', 'ignore_list', self.ignore_list_input.get("1.0", "end-1c").strip().lower())
+        self.global_config.set('Settings', 'speak_only_list', self.onlytalk_list_input.get("1.0", "end-1c").strip().lower())
         self.global_config.set('Settings', 'min_char', str(int(self.characters_slider.get())))
         with open("config.ini", 'w') as config_file:
             self.global_config.write(config_file)
