@@ -93,7 +93,7 @@ class MainWindow(ctk.CTk):
         self.log_file_path_input.grid(row=4, column=1, sticky="ew", pady=(0, 6))
 
         # Edge TTS Voice input
-        self.edge_voice_label = ctk.CTkLabel(self.main_frame, text="Edge TTS Voice LLM:", font=("Consolas", 12, "bold"))
+        self.edge_voice_label = ctk.CTkLabel(self.main_frame, text="Edge TTS Voice LLM (M,F):", font=("Consolas", 12, "bold"))
         self.edge_voice_label.grid(row=5, column=0, sticky="w")
 
         self.edge_voice_input = ctk.CTkEntry(self.main_frame, border_width=0)

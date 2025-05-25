@@ -178,6 +178,7 @@ def spell_check_message(message):
     return message
 
 def guess_gender_and_voice(first_name):
+    global window, EdgeVoice
     # Precompiled regex patterns for efficiency
     female_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in [
         'ss', 'ia', 'et', '[aeiou]ko', 'yl', 'ah', 'iya', 'it', 'li', 'yn', 'th', 'ey', 'il', 'at', 'bby', 'ndy', 'py', 'any', '[^n]ny', 'un', 'ssy', 'ele', 'iel', 'ell'
@@ -194,31 +195,44 @@ def guess_gender_and_voice(first_name):
 
     _first_name = re.sub(r'[0-9]', '', first_name).lower()
 
+    # Grab the config value. If input is 2; like "en-US-AndrewMultilingualNeural, en-US-EmmaMultilingualNeural"
+    # use the first for male and the second for female; otherwise return always the one value given
+    current_value = window.edge_voice_input.get()
+    voices = [v.strip() for v in current_value.split(",")]
+    if not voices:
+        male_voice = female_voice = EdgeVoice = "en-US-EmmaMultilingualNeural"
+    elif len(voices) == 2:
+        male_voice, female_voice = voices
+        EdgeVoice = male_voice
+    else:
+        male_voice = female_voice = voices[0]
+        EdgeVoice = voices[0]
+
     # 1. Male exceptions
     for pat in male_exceptions:
         if pat.search(_first_name):
-            return 'male', "en-US-AndrewMultilingualNeural"
+            return 'male', male_voice
 
     # 2. Female endings
     for pat in female_endings:
         if pat.search(_first_name):
-            return 'female', "en-US-EmmaMultilingualNeural"
+            return 'female', female_voice
 
     # 3. Female exceptions
     for pat in female_exceptions:
         if pat.search(_first_name):
-            return 'female', "en-US-EmmaMultilingualNeural"
+            return 'female', female_voice
 
     # 4. Male endings
     for pat in male_endings:
         if pat.search(_first_name):
-            return 'male', "en-US-AndrewMultilingualNeural"
+            return 'male', male_voice
 
     # 5. Fallback: last letter heuristic
     if re.match(r"[aei]", _first_name[-1:], re.IGNORECASE):
-        return 'female', "en-US-EmmaMultilingualNeural"
+        return 'female', female_voice
     else:
-        return 'male', "en-US-AndrewMultilingualNeural"
+        return 'male', male_voice
 
 def is_valid_voice_format(voice_name):
     """Validate if the voice name follows the format xx-XX-NAME."""
@@ -256,10 +270,10 @@ async def speak_text(text2say, VoiceOverride=None):
     """Use Edge TTS to speak the given text."""
     global is_playing, EdgeVoice, output_file_counter, window
 
-    current_value = window.edge_voice_input.get()
-    if current_value != EdgeVoice:
-        EdgeVoice = current_value
-        print(f"Edge voice changed to {EdgeVoice}")
+    # current_value = window.edge_voice_input.get()
+    # if current_value != EdgeVoice:
+    #     EdgeVoice = current_value
+    #     print(f"Edge voice changed to {EdgeVoice}")
 
     # Wait until the current audio finishes
     while is_playing:
@@ -748,6 +762,7 @@ def update_global(variable_name, value):
     """Update a global variable dynamically."""
     globals()[variable_name] = value
     original_print(f"Updated global {variable_name} to {value}")
+    name_cache = {}  # Reset the name cache when updating global variables
     # Ignore List updated:
     if variable_name == "SpeakOnlyList":
         toprint = ''
@@ -966,7 +981,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 1.5.2, by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.5.3, by Jara Lowell")
 
     # Start the window application event loop
     try:
