@@ -178,61 +178,57 @@ def spell_check_message(message):
 
     return message
 
-FEMALE_ENDINGS = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['ss', 'ia', 'et', '[aeiou]ko', 'yl', 'ah', 'iya', 'it', 'li', 'yn', 'th', 'ey', 'il', 'at', 'bby', 'ndy', 'py', 'any', '[^n]ny', 'un', 'ssy', 'ele', 'iel', 'ell']]
-MALE_ENDINGS = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['el', 'hu', 'ya', 'ge', 'pe', 're', 'ce', 'de', 'le']]
-MALE_EXCEPTIONS = [re.compile(pat, re.IGNORECASE) for pat in [r'\bGiora\b', r'\bEzra\b', r'\bElisha\b', r'\bAkiva\b', r'\bAba\b', r'\bAmit\b', r'kko\Z', r'Sasha', r'\bAndy\b', r'\bPhil\b']]
-FEMALE_EXCEPTIONS = [re.compile(pat, re.IGNORECASE) for pat in [r'Bint', r'\bRachael\b', r'\bRachel\b', r'\bLael\b', r'\bLiel\b', r'\bYael\b', r'\bGal\b', r'\bRain\b', r'\bSky\b', r'\bJill\b', r'\bAgnes\b', r'\bMary\b', r'\bKaren\b', r'\bErin\b', r'\bMerav\b', r'\bSharon\b']]
-
 def guess_gender_and_voice(first_name):
-    global window, EdgeVoice, FEMALE_ENDINGS, MALE_ENDINGS, MALE_EXCEPTIONS, FEMALE_EXCEPTIONS
+    global window, EdgeVoice
+    # Precompiled regex patterns for efficiency
+    female_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['ss', 'ia', 'et', '[aeiou]ko', 'yl', 'ah', 'iya', 'it', 'li', 'yn', 'th', 'ey', 'il', 'at', 'bby', 'ndy', 'py', 'any', '[^n]ny', 'un', 'ssy', 'ele', 'iel', 'ell']]
+    male_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['el', 'hu', 'ya', 'ge', 'pe', 're', 'ce', 'de', 'le']]
+    male_exceptions = [re.compile(pat, re.IGNORECASE) for pat in [r'\bGiora\b', r'\bEzra\b', r'\bElisha\b', r'\bAkiva\b', r'\bAba\b', r'\bAmit\b', r'kko\Z', r'Sasha', r'\bAndy\b', r'\bPhil\b']]
+    female_exceptions = [re.compile(pat, re.IGNORECASE) for pat in [r'Bint', r'\bRachael\b', r'\bRachel\b', r'\bLael\b', r'\bLiel\b', r'\bYael\b', r'\bGal\b', r'\bRain\b', r'\bSky\b', r'\bJill\b', r'\bAgnes\b', r'\bMary\b', r'\bKaren\b', r'\bErin\b', r'\bMerav\b', r'\bSharon\b']]
 
-    if not first_name or not isinstance(first_name, str):
-        # Fallback to default
-        EdgeVoice = "en-US-EmmaMultilingualNeural"
-        return None, EdgeVoice
+    _first_name = re.sub(r'[0-9]', '', first_name).lower()
 
-    # Clean and normalize name
-    _first_name = re.sub(r'[0-9]', '', first_name).strip().lower()
-    if not _first_name:
-        EdgeVoice = "en-US-EmmaMultilingualNeural"
-        return None, EdgeVoice
-
-    # Get voices from config (UI)
+    # Grab the config value. If input is 2; like "en-US-AndrewMultilingualNeural, en-US-EmmaMultilingualNeural"
+    # use the first for male and the second for female; otherwise return always the one value given
     current_value = window.edge_voice_input.get()
-    voices = [v.strip() for v in current_value.split(",") if v.strip()]
+    voices = [v.strip() for v in current_value.split(",")]
     if not voices:
-        EdgeVoice = "en-US-EmmaMultilingualNeural"
+        # Empty config ? return default
+        male_voice = female_voice = EdgeVoice = "en-US-EmmaMultilingualNeural"
         return None, EdgeVoice
-    elif len(voices) >= 2:
-        male_voice, female_voice = voices[0], voices[1]
+    elif len(voices) == 2:
+        male_voice, female_voice = voices
+        EdgeVoice = male_voice
     else:
+        # Welp only 1 value or more then 2? exit...
         male_voice = female_voice = voices[0]
-    EdgeVoice = male_voice
+        EdgeVoice = voices[0]
+        return None, EdgeVoice
 
     # 1. Male exceptions
-    for pat in MALE_EXCEPTIONS:
+    for pat in male_exceptions:
         if pat.search(_first_name):
             return 'male', male_voice
 
-    # 2. Female exceptions
-    for pat in FEMALE_EXCEPTIONS:
+    # 2. Female endings
+    for pat in female_endings:
         if pat.search(_first_name):
             return 'female', female_voice
 
-    # 3. Female endings
-    for pat in FEMALE_ENDINGS:
+    # 3. Female exceptions
+    for pat in female_exceptions:
         if pat.search(_first_name):
             return 'female', female_voice
 
     # 4. Male endings
-    for pat in MALE_ENDINGS:
+    for pat in male_endings:
         if pat.search(_first_name):
             return 'male', male_voice
 
     # 5. Fallback: last letter heuristic
-    if _first_name[-1:] in "aei":
+    if re.match(r"[aei]", _first_name[-1:], re.IGNORECASE):
         return 'female', female_voice
-    elif _first_name[-1:] in "ou":
+    elif re.match(r"[ou]", _first_name[-1:], re.IGNORECASE):
         return 'male', male_voice
 
     # 6. Default fallback
