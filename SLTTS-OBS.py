@@ -169,11 +169,12 @@ def spell_check_message(message):
     # Remove gibberish
     total_length = len(message)
     if total_length > 10:
-        cleaned = re.sub(r'[+\-*/=<>^|~,.\\#\'\"`]', '', message)
+        cleaned = re.sub(r'(?<=[a-zA-Z]|\d|\s|^)\.\.\.?(?=)', '…', message) # Convert ... to ellipsis symbol and contract repeated dots
+        cleaned = re.sub(r'[+\-*/=<>^|~,.\\#\'\"`]', '', cleaned)
         cleaned_length = len(cleaned)
-        removed_ratio = (total_length - cleaned_length) / total_length
-        if removed_ratio > 0.50:  # More than 50% removed = likely gibberish
-            print(f"IGNORED! Message '{message}' is considered more then 50% gibberish. Ratio: {removed_ratio:.2f}, Length: {total_length}")
+        ratio = cleaned_length / total_length
+        if (ratio < 0.70):
+            print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Ratio: {ratio:.2f}, Length: {total_length}")
             return ""
 
     return message
