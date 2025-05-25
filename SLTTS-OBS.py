@@ -646,6 +646,8 @@ async def monitor_log(log_file):
                                             if first_name:
                                                 first_name = re.sub(r'(?<!\p{L})\d+$', '', first_name)
                                                 name_cache[speaker_part] = (first_name, gender, thisvoice)
+                                                if thisvoice is not None:
+                                                    logging.warning(f"Speaker {first_name} Gender set to {gender} and Assigned voice to {thisvoice}")
 
                                         # Process the message
                                         if first_name:
@@ -674,7 +676,7 @@ async def monitor_log(log_file):
                                             elif message.startswith("shouts: "):
                                                 message = message[8:].strip()
                                                 messageorg = messageorg[8:].strip()
-                                                manner = 'shouts '
+                                                manner = 'shouts'
                                             elif message.startswith("whispers: "):
                                                 message = message[10:].strip()
                                                 messageorg = messageorg[10:].strip()
