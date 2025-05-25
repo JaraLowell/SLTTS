@@ -171,73 +171,72 @@ def spell_check_message(message):
     if total_length > 10:
         cleaned = re.sub(r'[+\-*/=<>^|~,.\\#\'\"`]', '', message)
         cleaned_length = len(cleaned)
-        ratio = cleaned_length / total_length
-        if (ratio < 0.70):
-           print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Ratio: {ratio:.2f}, Length: {total_length}")
-           return ""
+        removed_ratio = (total_length - cleaned_length) / total_length
+        if removed_ratio > 0.50:  # More than 50% removed = likely gibberish
+            print(f"IGNORED! Message '{message}' is considered more then 50% gibberish. Ratio: {removed_ratio:.2f}, Length: {total_length}")
+            return ""
 
     return message
 
+FEMALE_ENDINGS = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['ss', 'ia', 'et', '[aeiou]ko', 'yl', 'ah', 'iya', 'it', 'li', 'yn', 'th', 'ey', 'il', 'at', 'bby', 'ndy', 'py', 'any', '[^n]ny', 'un', 'ssy', 'ele', 'iel', 'ell']]
+MALE_ENDINGS = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['el', 'hu', 'ya', 'ge', 'pe', 're', 'ce', 'de', 'le']]
+MALE_EXCEPTIONS = [re.compile(pat, re.IGNORECASE) for pat in [r'\bGiora\b', r'\bEzra\b', r'\bElisha\b', r'\bAkiva\b', r'\bAba\b', r'\bAmit\b', r'kko\Z', r'Sasha', r'\bAndy\b', r'\bPhil\b']]
+FEMALE_EXCEPTIONS = [re.compile(pat, re.IGNORECASE) for pat in [r'Bint', r'\bRachael\b', r'\bRachel\b', r'\bLael\b', r'\bLiel\b', r'\bYael\b', r'\bGal\b', r'\bRain\b', r'\bSky\b', r'\bJill\b', r'\bAgnes\b', r'\bMary\b', r'\bKaren\b', r'\bErin\b', r'\bMerav\b', r'\bSharon\b']]
+
 def guess_gender_and_voice(first_name):
     global window, EdgeVoice
-    # Precompiled regex patterns for efficiency
-    female_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in [
-        'ss', 'ia', 'et', '[aeiou]ko', 'yl', 'ah', 'iya', 'it', 'li', 'yn', 'th', 'ey', 'il', 'at', 'bby', 'ndy', 'py', 'any', '[^n]ny', 'un', 'ssy', 'ele', 'iel', 'ell'
-    ]]
-    male_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in [
-        'el', 'hu', 'ya', 'ge', 'pe', 're', 'ce', 'de', 'le'
-    ]]
-    male_exceptions = [re.compile(pat, re.IGNORECASE) for pat in [
-        r'\bGiora\b', r'\bEzra\b', r'\bElisha\b', r'\bAkiva\b', r'\bAba\b', r'\bAmit\b', r'kko\Z', r'Sasha', r'\bAndy\b', r'\bPhil\b'
-    ]]
-    female_exceptions = [re.compile(pat, re.IGNORECASE) for pat in [
-        r'Bint', r'\bRachael\b', r'\bRachel\b', r'\bLael\b', r'\bLiel\b', r'\bYael\b', r'\bGal\b', r'\bRain\b', r'\bSky\b', r'\bJill\b', r'\bAgnes\b', r'\bMary\b', r'\bKaren\b', r'\bErin\b', r'\bMerav\b', r'\bSharon\b'
-    ]]
 
-    _first_name = re.sub(r'[0-9]', '', first_name).lower()
+    if not first_name or not isinstance(first_name, str):
+        # Fallback to default
+        EdgeVoice = "en-US-EmmaMultilingualNeural"
+        return None, EdgeVoice
 
-    # Grab the config value. If input is 2; like "en-US-AndrewMultilingualNeural, en-US-EmmaMultilingualNeural"
-    # use the first for male and the second for female; otherwise return always the one value given
+    # Clean and normalize name
+    _first_name = re.sub(r'[0-9]', '', first_name).strip().lower()
+    if not _first_name:
+        EdgeVoice = "en-US-EmmaMultilingualNeural"
+        return None, EdgeVoice
+
+    # Get voices from config (UI)
     current_value = window.edge_voice_input.get()
-    voices = [v.strip() for v in current_value.split(",")]
+    voices = [v.strip() for v in current_value.split(",") if v.strip()]
     if not voices:
-        # Empty config ? return default
-        male_voice = female_voice = EdgeVoice = "en-US-EmmaMultilingualNeural"
+        EdgeVoice = "en-US-EmmaMultilingualNeural"
         return None, EdgeVoice
-    elif len(voices) == 2:
-        male_voice, female_voice = voices
-        EdgeVoice = male_voice
+    elif len(voices) >= 2:
+        male_voice, female_voice = voices[0], voices[1]
     else:
-        # Welp only 1 value or more then 2? exit...
         male_voice = female_voice = voices[0]
-        EdgeVoice = voices[0]
-        return None, EdgeVoice
+    EdgeVoice = male_voice
 
     # 1. Male exceptions
-    for pat in male_exceptions:
+    for pat in MALE_EXCEPTIONS:
         if pat.search(_first_name):
             return 'male', male_voice
 
-    # 2. Female endings
-    for pat in female_endings:
+    # 2. Female exceptions
+    for pat in FEMALE_EXCEPTIONS:
         if pat.search(_first_name):
             return 'female', female_voice
 
-    # 3. Female exceptions
-    for pat in female_exceptions:
+    # 3. Female endings
+    for pat in FEMALE_ENDINGS:
         if pat.search(_first_name):
             return 'female', female_voice
 
     # 4. Male endings
-    for pat in male_endings:
+    for pat in MALE_ENDINGS:
         if pat.search(_first_name):
             return 'male', male_voice
 
     # 5. Fallback: last letter heuristic
-    if re.match(r"[aei]", _first_name[-1:], re.IGNORECASE):
+    if _first_name[-1:] in "aei":
         return 'female', female_voice
-    else:
+    elif _first_name[-1:] in "ou":
         return 'male', male_voice
+
+    # 6. Default fallback
+    return None, female_voice
 
 def is_valid_voice_format(voice_name):
     """Validate if the voice name follows the format xx-XX-NAME."""
