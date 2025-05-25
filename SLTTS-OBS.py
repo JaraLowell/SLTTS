@@ -200,13 +200,17 @@ def guess_gender_and_voice(first_name):
     current_value = window.edge_voice_input.get()
     voices = [v.strip() for v in current_value.split(",")]
     if not voices:
+        # Empty config ? return default
         male_voice = female_voice = EdgeVoice = "en-US-EmmaMultilingualNeural"
+        return None, EdgeVoice
     elif len(voices) == 2:
         male_voice, female_voice = voices
         EdgeVoice = male_voice
     else:
+        # Welp only 1 value or more then 2? exit...
         male_voice = female_voice = voices[0]
         EdgeVoice = voices[0]
+        return None, EdgeVoice
 
     # 1. Male exceptions
     for pat in male_exceptions:
@@ -270,11 +274,6 @@ async def speak_text(text2say, VoiceOverride=None):
     """Use Edge TTS to speak the given text."""
     global is_playing, EdgeVoice, output_file_counter, window
 
-    # current_value = window.edge_voice_input.get()
-    # if current_value != EdgeVoice:
-    #     EdgeVoice = current_value
-    #     print(f"Edge voice changed to {EdgeVoice}")
-
     # Wait until the current audio finishes
     while is_playing:
         await asyncio.sleep(0.25)
@@ -323,8 +322,6 @@ async def speak_text(text2say, VoiceOverride=None):
     finally:
         # Clean up and reset the flag
         pygame.mixer.music.unload()
-        if VoiceOverride is not None:
-            EdgeVoice = current_value
         is_playing = False
 
 # List to store chat messages for the website
