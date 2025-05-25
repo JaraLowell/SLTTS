@@ -166,7 +166,59 @@ def spell_check_message(message):
     # Replace double spaces with a single space
     message = re.sub(r'\s+', ' ', message).strip()
 
+    # Remove gibberish
+    total_length = len(message)
+    if total_length > 0:
+        cleaned = re.sub(r'[+\-*/=<>^|~,.\\#\'\"`]', '', message)
+        cleaned_length = len(cleaned)
+        ratio = cleaned_length / total_length
+        if (ratio < 0.70):
+            return ""
+
     return message
+
+def guess_gender_and_voice(first_name):
+    # Precompiled regex patterns for efficiency
+    female_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in [
+        'ss', 'ia', 'et', '[aeiou]ko', 'yl', 'ah', 'iya', 'it', 'li', 'yn', 'th', 'ey', 'il', 'at', 'bby', 'ndy', 'py', 'any', '[^n]ny', 'un', 'ssy', 'ele', 'iel', 'ell'
+    ]]
+    male_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in [
+        'el', 'hu', 'ya', 'ge', 'pe', 're', 'ce', 'de', 'le'
+    ]]
+    male_exceptions = [re.compile(pat, re.IGNORECASE) for pat in [
+        r'\bGiora\b', r'\bEzra\b', r'\bElisha\b', r'\bAkiva\b', r'\bAba\b', r'\bAmit\b', r'kko\Z', r'Sasha', r'\bAndy\b', r'\bPhil\b'
+    ]]
+    female_exceptions = [re.compile(pat, re.IGNORECASE) for pat in [
+        r'Bint', r'\bRachael\b', r'\bRachel\b', r'\bLael\b', r'\bLiel\b', r'\bYael\b', r'\bGal\b', r'\bRain\b', r'\bSky\b', r'\bJill\b', r'\bAgnes\b', r'\bMary\b', r'\bKaren\b', r'\bErin\b', r'\bMerav\b', r'\bSharon\b'
+    ]]
+
+    _first_name = re.sub(r'[0-9]', '', first_name).lower()
+
+    # 1. Male exceptions
+    for pat in male_exceptions:
+        if pat.search(_first_name):
+            return 'male', "en-US-AndrewMultilingualNeural"
+
+    # 2. Female endings
+    for pat in female_endings:
+        if pat.search(_first_name):
+            return 'female', "en-US-EmmaMultilingualNeural"
+
+    # 3. Female exceptions
+    for pat in female_exceptions:
+        if pat.search(_first_name):
+            return 'female', "en-US-EmmaMultilingualNeural"
+
+    # 4. Male endings
+    for pat in male_endings:
+        if pat.search(_first_name):
+            return 'male', "en-US-AndrewMultilingualNeural"
+
+    # 5. Fallback: last letter heuristic
+    if re.match(r"[aei]", _first_name[-1:], re.IGNORECASE):
+        return 'female', "en-US-EmmaMultilingualNeural"
+    else:
+        return 'male', "en-US-AndrewMultilingualNeural"
 
 def is_valid_voice_format(voice_name):
     """Validate if the voice name follows the format xx-XX-NAME."""
@@ -226,8 +278,22 @@ async def speak_text(text2say, VoiceOverride=None):
         # Generate and save the audio file
         output_file = f"output{output_file_counter}.mp3"
         output_file_counter = (output_file_counter + 1) % 3
+
+        # Dynamically adjust the rate based on text length
+        min_len, max_len = 64, 384
+        min_rate, max_rate = 1, 8
+        text_len = len(text2say)
+        if text_len <= min_len:
+            _rate = f'+{min_rate}%'
+        elif text_len >= max_len:
+            _rate = f'+{max_rate}%'
+        else:
+            # Linear interpolation between min_rate and max_rate, rounded to nearest integer
+            interp = round(min_rate + (max_rate - min_rate) * (text_len - min_len) / (max_len - min_len))
+            _rate = f'+{interp}%'
+
         try:
-            await Communicate(text = text2say, voice=EdgeVoice, rate = '+8%', pitch = '+0Hz').save(output_file)
+            await Communicate(text = text2say, voice=EdgeVoice, rate = _rate, pitch = '+0Hz').save(output_file)
         except Exception as e:
             logging.error(f"Error generating audio: {e}")
             return
@@ -503,8 +569,9 @@ async def monitor_log(log_file):
                                         first_name = None
                                         ignore_match = False
                                         speak_only_match = False
-
                                         thisvoice = None
+                                        gender = None
+
                                         if name2voice:
                                             if speaker_part in name2voice:
                                                 thisvoice = name2voice[speaker_part]
@@ -536,7 +603,12 @@ async def monitor_log(log_file):
                                         if ignore_match and speaker_part in name_cache:
                                             del name_cache[speaker_part]
                                         elif speaker_part in name_cache:
-                                            first_name = name_cache[speaker_part]
+                                            cached = name_cache[speaker_part]
+                                            if isinstance(cached, tuple) and len(cached) == 3:
+                                                first_name, gender, thisvoice = cached
+                                            else:
+                                                first_name = cached
+                                            # first_name = name_cache[speaker_part]
                                         elif not ignore_match:
                                             if '(' in speaker_part and ')' in speaker_part:
                                                 speaker = speaker_part.split('(')[1].split(')')[0].strip()
@@ -562,10 +634,17 @@ async def monitor_log(log_file):
 
                                             if first_name:
                                                 first_name = re.sub(r'(?<!\p{L})\d+$', '', first_name)
-                                                name_cache[speaker_part] = first_name
+                                                name_cache[speaker_part] = (first_name, gender, thisvoice)
 
                                         # Process the message
                                         if first_name:
+                                            if thisvoice is None:
+                                                gender, thisvoice = guess_gender_and_voice(first_name)
+                                                if gender:
+                                                    logging.warning(f"Speaker {first_name} Gender set to {gender} and Assigned voice to {thisvoice}")
+                                                    # Lets cashe this so we not check this ever damn time
+                                                    name_cache[speaker_part] = (first_name, gender, thisvoice)
+
                                             if last_user != speaker_part:
                                                 last_user = speaker_part
                                                 last_voice = thisvoice
@@ -575,6 +654,7 @@ async def monitor_log(log_file):
                                             else:
                                                 isrepat = True
 
+                                            manner = 'says'
                                             if message.startswith("/me"):
                                                 message = message[3:].strip()
                                                 messageorg = messageorg[3:].strip()
@@ -583,9 +663,11 @@ async def monitor_log(log_file):
                                             elif message.startswith("shouts: "):
                                                 message = message[8:].strip()
                                                 messageorg = messageorg[8:].strip()
+                                                manner = 'shouts '
                                             elif message.startswith("whispers: "):
                                                 message = message[10:].strip()
                                                 messageorg = messageorg[10:].strip()
+                                                manner = 'whispers'
 
                                             message = spell_check_message(message)
                                             if len(message) < min_char:
@@ -605,7 +687,7 @@ async def monitor_log(log_file):
                                                     to_cc = f"{first_name} {message}" if OBSChatFiltered else f"{first_name} {messageorg}"
                                                     print(f"{to_speak}")
                                                 else:
-                                                    to_speak = f"{first_name} says: {message}"
+                                                    to_speak = f"{first_name} {manner}: {message}"
                                                     to_cc = f"{first_name}: {message}" if OBSChatFiltered else f"{first_name}: {messageorg}"
                                                     print(f"{to_speak}")
 
