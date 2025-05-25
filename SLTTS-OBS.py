@@ -173,7 +173,7 @@ def spell_check_message(message):
         cjk_count = sum('\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff' or '\uac00' <= c <= '\ud7af' for c in message)
         ratio = (letter_count + cjk_count) / total_length
         long_non_letter = re.search(r'[^A-Za-z0-9\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\s]{5,}', message)
-        if ratio < 0.70 or long_non_letter:
+        if ratio < 0.50 or long_non_letter:
             logging.warning(f"Message '{message}' is considered gibberish. Ratio: {ratio:.2f}, Length: {total_length}")
             return ""
 
