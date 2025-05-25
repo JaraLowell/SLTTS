@@ -184,7 +184,7 @@ MALE_EXCEPTIONS = [re.compile(pat, re.IGNORECASE) for pat in [r'\bGiora\b', r'\b
 FEMALE_EXCEPTIONS = [re.compile(pat, re.IGNORECASE) for pat in [r'Bint', r'\bRachael\b', r'\bRachel\b', r'\bLael\b', r'\bLiel\b', r'\bYael\b', r'\bGal\b', r'\bRain\b', r'\bSky\b', r'\bJill\b', r'\bAgnes\b', r'\bMary\b', r'\bKaren\b', r'\bErin\b', r'\bMerav\b', r'\bSharon\b']]
 
 def guess_gender_and_voice(first_name):
-    global window, EdgeVoice
+    global window, EdgeVoice, FEMALE_ENDINGS, MALE_ENDINGS, MALE_EXCEPTIONS, FEMALE_EXCEPTIONS
 
     if not first_name or not isinstance(first_name, str):
         # Fallback to default
@@ -236,7 +236,7 @@ def guess_gender_and_voice(first_name):
         return 'male', male_voice
 
     # 6. Default fallback
-    return None, female_voice
+    return None, male_voice
 
 def is_valid_voice_format(voice_name):
     """Validate if the voice name follows the format xx-XX-NAME."""
