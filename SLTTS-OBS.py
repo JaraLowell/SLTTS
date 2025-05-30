@@ -168,7 +168,13 @@ def spell_check_message(message):
 
     # Remove gibberish
     total_length = len(message)
-    if total_length > 10:
+    temp = re.sub(r'[_\|]', '', message)
+    temp_len = len(temp)
+    non_alnum_len = len(re.sub(r'[\d|\p{L}\p{M}*+]', '', temp))
+    if (temp_len - non_alnum_len == 0):
+        print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Length: {total_length}")
+        return ""
+    elif total_length > 10:
         cleaned = re.sub(r'(?<=[a-zA-Z]|\d|\s|^)\.\.\.?(?=)', '…', message) # Convert ... to ellipsis symbol and contract repeated dots
         cleaned = re.sub(r'[+\-*/=<>^|~,.\\#\'\"`]', '', cleaned)
         cleaned_length = len(cleaned)
@@ -182,7 +188,7 @@ def spell_check_message(message):
 def guess_gender_and_voice(first_name):
     global window, EdgeVoice
     # Precompiled regex patterns for efficiency
-    female_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['ss', 'ia', 'et', '[aeiou]ko', 'yl', 'ah', 'iya', 'it', 'li', 'yn', 'th', 'ey', 'il', 'at', 'bby', 'ndy', 'py', 'any', '[^n]ny', 'un', 'ssy', 'ele', 'iel', 'ell']]
+    female_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['ss', 'ia', 'et', '[aeiou]ko', 'yl', 'ah', 'iya', 'it', 'li', 'yn', 'th', 'ey', '[pbv]ril', 'gail', 'at', 'bby', 'ndy', 'py', 'any', '[^n]ny', 'un', 'ssy', 'ele', 'iel', 'ell']]
     male_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['el', 'hu', 'ya', 'ge', 'pe', 're', 'ce', 'de', 'le']]
     male_exceptions = [re.compile(pat, re.IGNORECASE) for pat in [r'\bGiora\b', r'\bEzra\b', r'\bElisha\b', r'\bAkiva\b', r'\bAba\b', r'\bAmit\b', r'kko\Z', r'Sasha', r'\bAndy\b', r'\bPhil\b']]
     female_exceptions = [re.compile(pat, re.IGNORECASE) for pat in [r'Bint', r'\bRachael\b', r'\bRachel\b', r'\bLael\b', r'\bLiel\b', r'\bYael\b', r'\bGal\b', r'\bRain\b', r'\bSky\b', r'\bJill\b', r'\bAgnes\b', r'\bMary\b', r'\bKaren\b', r'\bErin\b', r'\bMerav\b', r'\bSharon\b']]
@@ -206,18 +212,18 @@ def guess_gender_and_voice(first_name):
         EdgeVoice = voices[0]
         return None, EdgeVoice
 
-    # 1. Male exceptions
+    # 1. Female exceptions
+    for pat in female_exceptions:
+        if pat.search(_first_name):
+            return 'female', female_voice
+
+    # 2. Male exceptions
     for pat in male_exceptions:
         if pat.search(_first_name):
             return 'male', male_voice
 
-    # 2. Female endings
+    # 3. Female endings
     for pat in female_endings:
-        if pat.search(_first_name):
-            return 'female', female_voice
-
-    # 3. Female exceptions
-    for pat in female_exceptions:
         if pat.search(_first_name):
             return 'female', female_voice
 
@@ -655,7 +661,7 @@ async def monitor_log(log_file):
                                                     # Lets cashe this so we not check this ever damn time
                                                     name_cache[speaker_part] = (first_name, gender, thisvoice)
 
-                                            if last_user != speaker_part:
+                                            if last_user != speaker_part or last_message == None:
                                                 last_user = speaker_part
                                                 last_voice = thisvoice
                                                 isrepat = False
@@ -682,6 +688,7 @@ async def monitor_log(log_file):
                                             message = spell_check_message(message)
                                             if len(message) < min_char:
                                                 message = ''
+                                                last_message = None
 
                                             if last_message == (speaker_part + ':' + message) and time.time() - last_chat < 121:
                                                 message = ''
