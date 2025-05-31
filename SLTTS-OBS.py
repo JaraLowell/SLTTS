@@ -626,7 +626,10 @@ async def monitor_log(log_file):
                                         elif not ignore_match:
                                             if '(' in speaker_part and ')' in speaker_part:
                                                 speaker = speaker_part.split('(')[1].split(')')[0].strip()
-                                                first_name = speaker.split('.')[0].capitalize()
+                                                if '.' in speaker:
+                                                    first_name = speaker.split('.')[0].capitalize()
+                                                else:
+                                                    first_name = speaker.capitalize() if speaker.islower() else speaker
                                                 speaker = speaker_part.split('(')[0].strip()
                                             else:
                                                 speaker = speaker_part
