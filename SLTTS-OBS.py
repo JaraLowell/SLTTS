@@ -634,6 +634,10 @@ async def monitor_log(log_file):
                                             else:
                                                 speaker = speaker_part
 
+                                            # Lets allow trasnlators for now that transalte spesificly to english
+                                            if speaker[-3:] == ">en":
+                                                speaker = speaker.rsplit(' ', 1)[0]
+
                                             if speaker == 'Second Life':
                                                 first_name = None
                                             elif " " in speaker:
@@ -987,7 +991,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 1.5.3, by Jara Lowell")
+    print("Second Life Chat log to Speech version 1.5.4, by Jara Lowell")
 
     # Start the window application event loop
     try:
