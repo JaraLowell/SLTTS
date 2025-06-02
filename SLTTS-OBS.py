@@ -93,7 +93,7 @@ def clean_name(name):
         if script_name not in script_names:
             script_names.add(script_name)
 
-    if len(script_names) == 1 and "LATIN Extended" not in script_names:
+    if len(script_names) == 1: # and "LATIN Extended" not in script_names:
         return True
 
     return False
@@ -655,18 +655,17 @@ async def monitor_log(log_file):
                                             if speaker == 'Second Life':
                                                 first_name = None
                                             elif " " in speaker:
-                                                speaker = ascii_name(speaker)  # Clean the name to ASCII
                                                 tmp = speaker.split(' ')
                                                 salutations = {"lady", "lord", "sir", "miss", "ms", "mr", "mrs", "dr", "prof", "the", "master", "mistress", "madam", "madame", "dame", "captain", "chief", "colonel", "general", "admiral", "officer", "agent", "dj"}
                                                 if all(part.isalnum() for part in tmp):
                                                     if tmp[0].lower() in salutations and len(tmp) > 1:
                                                         if clean_name(tmp[1]):
-                                                            first_name = tmp[1].capitalize()
+                                                            first_name = ascii_name(tmp[1])
                                                     elif clean_name(tmp[0]):
-                                                        first_name = tmp[0].capitalize()
+                                                        first_name = ascii_name(tmp[0])
                                             elif speaker.isalnum():
                                                 if clean_name(speaker):
-                                                    first_name = speaker.capitalize()
+                                                    first_name = ascii_name(speaker)
 
                                             if first_name:
                                                 first_name = re.sub(r'(?<!\p{L})\d+$', '', first_name)
