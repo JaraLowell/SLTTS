@@ -79,7 +79,7 @@ def clean_name(name):
         if script_name not in script_names:
             script_names.add(script_name)
 
-    if len(script_names) == 1:
+    if len(script_names) == 1 and "Extended" not in script_names:
         return True
 
     return False
@@ -168,15 +168,15 @@ def spell_check_message(message):
 
     # Remove gibberish
     total_length = len(message)
-    temp = re.sub(r'[_\|]', '', message)
+    temp = re.sub(r'[_]', '', message)
     temp_len = len(temp)
-    non_alnum_len = len(re.sub(r'[\d|\p{L}\p{M}*+]', '', temp))
+    non_alnum_len = len(re.sub(r'[\d\p{L}\p{M}]', '', temp))
     if (temp_len - non_alnum_len == 0):
         print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Length: {total_length}")
         return ""
     elif total_length > 10:
         cleaned = re.sub(r'(?<=[a-zA-Z]|\d|\s|^)\.\.\.?(?=)', '…', message) # Convert ... to ellipsis symbol and contract repeated dots
-        cleaned = re.sub(r'[+\-*/=<>^|~,.\\#\'\"`]', '', cleaned)
+        cleaned = re.sub(r'[+\-*/=<>^|~,.\\#\'":;_`¦]', '', cleaned)
         cleaned_length = len(cleaned)
         ratio = cleaned_length / total_length
         if (ratio < 0.70):
@@ -629,7 +629,7 @@ async def monitor_log(log_file):
                                                 if '.' in speaker:
                                                     first_name = speaker.split('.')[0].capitalize()
                                                 else:
-                                                    first_name = speaker.capitalize() if speaker.islower() else speaker
+                                                    first_name = speaker.capitalize()
                                                 speaker = speaker_part.split('(')[0].strip()
                                             else:
                                                 speaker = speaker_part
@@ -642,7 +642,7 @@ async def monitor_log(log_file):
                                                 first_name = None
                                             elif " " in speaker:
                                                 tmp = speaker.split(' ')
-                                                salutations = {"lady", "lord", "sir", "miss", "ms", "mr", "mrs", "dr", "prof"}
+                                                salutations = {"lady", "lord", "sir", "miss", "ms", "mr", "mrs", "dr", "prof", "the", "master", "mistress", "madam", "madame", "dame", "captain", "chief", "colonel", "general", "admiral", "officer", "agent", "dj"}
                                                 if all(part.isalnum() for part in tmp):
                                                     if tmp[0].lower() in salutations and len(tmp) > 1:
                                                         if clean_name(tmp[1]):
