@@ -61,22 +61,25 @@ def ascii_name(name):
     # Remove all non-letter characters except spaces
     name = re.sub(r'[^\p{L}\s]', '', name)
     # Transliterate to ASCII
-    name = unidecode(name)
+    name = unidecode(name, errors='ignore', replace_str='')
     # Remove extra spaces and capitalize each word
     name = name.strip().title()
     return name
-# ascii_name("**Андрей**")       > 'Andrei'
-# ascii_name(" * * さくら * * ")  > 'Sakura'
-# ascii_name("ʟᴀɪᴋᴇɴ")           > 'Laiken'
-# ascii_name("Αλέξανδρος")       > 'Alexandros'
+
+    # ascii_name("**Андрей**")       > 'Andrei'
+    # ascii_name(" * * さくら * * ")  > 'Sakura'
+    # ascii_name("ms ʟᴀɪᴋᴇɴ")        > 'Ms Laiken'
+    # ascii_name("Αλέξανδρος")       > 'Alexandros'
 
 def clean_name(name):
     # Lets check if only one language is used in the name
     # This is a very simple check, but it works for most cases
+    name = name.lower()
+
     script_names = set()
     for char in name:
         try:
-            script_name = unicodedata.name(char.lower())
+            script_name = unicodedata.name(char)
         except ValueError:
             script_name = "Unknown" # Handle characters without a name
             continue
