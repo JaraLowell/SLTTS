@@ -76,7 +76,7 @@ def clean_name(name):
     script_names = set()
     for char in name:
         try:
-            script_name = unicodedata.name(char)
+            script_name = unicodedata.name(char.lower())
         except ValueError:
             script_name = "Unknown" # Handle characters without a name
             continue
