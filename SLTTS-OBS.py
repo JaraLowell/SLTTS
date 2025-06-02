@@ -15,6 +15,7 @@ import regex as re
 from edge_tts import Communicate
 from edge_tts import list_voices
 import unicodedata
+from unidecode import unidecode
 from configparser import ConfigParser
 from aiohttp import web
 from datetime import datetime
@@ -55,6 +56,19 @@ tool = None
 readloop = False
 play_volume = 0.75  # Default volume
 min_char = 2  # Default minimum characters
+
+def ascii_name(name):
+    # Remove all non-letter characters except spaces
+    name = re.sub(r'[^\p{L}\s]', '', name)
+    # Transliterate to ASCII
+    name = unidecode(name)
+    # Remove extra spaces and capitalize each word
+    name = name.strip().title()
+    return name
+# ascii_name("**Андрей**")       > 'Andrei'
+# ascii_name(" * * さくら * * ")  > 'Sakura'
+# ascii_name("ʟᴀɪᴋᴇɴ")           > 'Laiken'
+# ascii_name("Αλέξανδρος")       > 'Alexandros'
 
 def clean_name(name):
     # Lets check if only one language is used in the name
@@ -641,6 +655,7 @@ async def monitor_log(log_file):
                                             if speaker == 'Second Life':
                                                 first_name = None
                                             elif " " in speaker:
+                                                speaker = ascii_name(speaker)  # Clean the name to ASCII
                                                 tmp = speaker.split(' ')
                                                 salutations = {"lady", "lord", "sir", "miss", "ms", "mr", "mrs", "dr", "prof", "the", "master", "mistress", "madam", "madame", "dame", "captain", "chief", "colonel", "general", "admiral", "officer", "agent", "dj"}
                                                 if all(part.isalnum() for part in tmp):
