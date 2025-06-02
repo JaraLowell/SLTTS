@@ -69,7 +69,7 @@ def clean_name(name):
 
         if "WITH" in script_name or "SMALL CAPITAL" in script_name:
             # Seriously ! ŦorestŞheŨrt is Latin ... but with stroke F, cedilla S and tilde U
-            script_name = script_name.split()[0] + 'Extended'
+            script_name = script_name.split()[0] + ' Extended'
         elif "DIGIT" in script_name:
             # We do want to keep numbers as LATIN, or thay get aded as DIGIT
             script_name = 'LATIN'
@@ -79,7 +79,7 @@ def clean_name(name):
         if script_name not in script_names:
             script_names.add(script_name)
 
-    if len(script_names) == 1 and "Extended" not in script_names:
+    if len(script_names) == 1 and "LATIN Extended" not in script_names:
         return True
 
     return False
