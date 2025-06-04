@@ -84,7 +84,8 @@ def clean_name(name):
             script_name = "Unknown" # Handle characters without a name
             continue
 
-        if "WITH" in script_name or "SMALL CAPITAL" in script_name:
+        # as a test removing "WITH" in script_name or 
+        if "SMALL CAPITAL" in script_name:
             # Seriously ! ŦorestŞheŨrt is Latin ... but with stroke F, cedilla S and tilde U
             script_name = script_name.split()[0] + ' Extended'
         elif "DIGIT" in script_name:
@@ -533,7 +534,7 @@ async def start_server():
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
     # await speak_text("Starting up! Monitoring log file...")
-    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char, name2voice, last_voice, SpeakOnlyList
+    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char, name2voice, last_voice, SpeakOnlyList, slang_replacements
 
     # Start at the end of the file
     last_position = 0
@@ -671,7 +672,11 @@ async def monitor_log(log_file):
                                                     first_name = ascii_name(speaker)
 
                                             if first_name:
+                                                # remove trailing numbers
                                                 first_name = re.sub(r'(?<!\p{L})\d+$', '', first_name)
+                                                # Replace known display name/gibberish name with replacement name in slang replacements
+                                                if first_name in slang_replacements:
+                                                    first_name = slang_replacements[first_name]
                                                 name_cache[speaker_part] = (first_name, gender, thisvoice)
                                                 if thisvoice is not None:
                                                     logging.warning(f"Speaker {first_name} Gender set to {gender} and Assigned voice to {thisvoice}")
