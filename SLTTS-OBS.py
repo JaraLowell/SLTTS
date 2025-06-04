@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Needs > pip install edge-tts language_tool_python asyncio regex pygame
+# Needs > pip install edge-tts language_tool_python asyncio regex pygame unidecode
 import sys
 import os
 import logging
@@ -58,7 +58,7 @@ play_volume = 0.75  # Default volume
 min_char = 2  # Default minimum characters
 
 def ascii_name(name):
-    # Remove all non-letter characters except spaces
+    # Remove all non-letter characters except spaces (\d\s- to allow hyphenated names and numbers)
     name = re.sub(r'[^\p{L}\s]', '', name)
     # Transliterate to ASCII
     name = unidecode(name, errors='ignore', replace_str='')
@@ -658,7 +658,7 @@ async def monitor_log(log_file):
                                             if speaker == 'Second Life':
                                                 first_name = None
                                             elif " " in speaker:
-                                                tmp = speaker.split(' ')
+                                                tmp = (re.sub(r'\s+', ' ', speaker).strip()).split(' ')
                                                 salutations = {"lady", "lord", "sir", "miss", "ms", "mr", "mrs", "dr", "prof", "the", "master", "mistress", "madam", "madame", "dame", "captain", "chief", "colonel", "general", "admiral", "officer", "agent", "dj"}
                                                 if all(part.isalnum() for part in tmp):
                                                     if tmp[0].lower() in salutations and len(tmp) > 1:
