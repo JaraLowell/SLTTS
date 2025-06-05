@@ -126,6 +126,9 @@ def spell_check_message(message):
     if not message:
         return ""  # Return empty string if message is empty
 
+    # Collapse repeated grapheme clusters (including emoji)
+    message = re.sub(r'(\X)\1{3,}', r'\1', message)
+
     # Replace emojis with their descriptive words
     message = emoji.replace_emoji(message, replace=emoji_to_word)
 
@@ -186,17 +189,15 @@ def spell_check_message(message):
 
     # Remove gibberish
     total_length = len(message)
-    temp = re.sub(r'[_]', '', message)
+    temp = re.sub(r'[_\s()]', '', message)
     temp_len = len(temp)
-    non_alnum_len = len(re.sub(r'[\d\p{L}\p{M}]', '', temp))
+    non_alnum_len = len(re.sub(r'[\d\p{L}\p{M}\s()]', '', temp))
     if (temp_len - non_alnum_len == 0):
         print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Length: {total_length}")
         return ""
     elif total_length > 10:
-        cleaned = re.sub(r'(?<=[a-zA-Z]|\d|\s|^)\.\.\.?(?=)', '…', message) # Convert ... to ellipsis symbol and contract repeated dots
-        cleaned = re.sub(r'[+\-*/=<>^|~,.\\#\'":;_`¦]', '', cleaned)
-        cleaned_length = len(cleaned)
-        ratio = cleaned_length / total_length
+        non_alnum_len = re.sub(r'(?<=\p{L}|\p{M}|\d|\s|^)\.\.\.?(?=)', '…', message) # Convert ... to ellipsis symbol and contract repeated dots
+        ratio = 1 - (non_alnum_len / total_length)
         if (ratio < 0.70):
             print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Ratio: {ratio:.2f}, Length: {total_length}")
             return ""
@@ -655,6 +656,9 @@ async def monitor_log(log_file):
                                             # Lets allow trasnlators for now that transalte spesificly to english
                                             if speaker[-3:] == ">en":
                                                 speaker = speaker.rsplit(' ', 1)[0]
+                                            
+                                            # Try to split camel case (e.g., MsLaiken -> Ms Laiken or MsLaniSmit > Ms Lani Smit)
+                                            # speaker = " ".join(re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?![a-z])', speaker))
 
                                             if speaker == 'Second Life':
                                                 first_name = None
