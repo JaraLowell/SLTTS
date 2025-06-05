@@ -189,15 +189,17 @@ def spell_check_message(message):
 
     # Remove gibberish
     total_length = len(message)
-    temp = re.sub(r'[_\s()]', '', message)
+    temp = re.sub(r'[_]', '', message)
     temp_len = len(temp)
-    non_alnum_len = len(re.sub(r'[\d\p{L}\p{M}\s()]', '', temp))
+    non_alnum_len = len(re.sub(r'[\d\p{L}\p{M}]', '', temp))
     if (temp_len - non_alnum_len == 0):
         print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Length: {total_length}")
         return ""
     elif total_length > 10:
-        non_alnum_len = re.sub(r'(?<=\p{L}|\p{M}|\d|\s|^)\.\.\.?(?=)', '…', message) # Convert ... to ellipsis symbol and contract repeated dots
-        ratio = 1 - (non_alnum_len / total_length)
+        cleaned = re.sub(r'(?<=[a-zA-Z]|\d|\s|^)\.\.\.?(?=)', '…', message) # Convert ... to ellipsis symbol and contract repeated dots
+        cleaned = re.sub(r'[+\-*/=<>^|~,.\\#\'":;_`¦]', '', cleaned)
+        cleaned_length = len(cleaned)
+        ratio = cleaned_length / total_length
         if (ratio < 0.70):
             print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Ratio: {ratio:.2f}, Length: {total_length}")
             return ""
