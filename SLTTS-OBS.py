@@ -648,9 +648,9 @@ async def monitor_log(log_file):
                                             if '(' in speaker_part and ')' in speaker_part:
                                                 speaker = speaker_part.split('(')[1].split(')')[0].strip()
                                                 if '.' in speaker:
-                                                    first_name = speaker.split('.')[0]
+                                                    first_name = speaker.split('.')[0].capitalize()
                                                 else:
-                                                    first_name = speaker
+                                                    first_name = speaker.capitalize()
                                                 speaker = speaker_part.split('(')[0].strip()
                                             else:
                                                 speaker = speaker_part
