@@ -188,21 +188,22 @@ def spell_check_message(message):
     message = re.sub(r'\s+', ' ', message).strip()
 
     # Remove gibberish
-    total_length = len(message)
-    temp = re.sub(r'[_]', '', message)
-    temp_len = len(temp)
-    non_alnum_len = len(re.sub(r'[\d\p{L}\p{M}]', '', temp))
-    if (temp_len - non_alnum_len == 0):
-        print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Length: {total_length}")
+    temp = re.sub(r'(?<=\p{L}|\p{M}|\d|\s|^)\.\.\.?(?=)', '…', message) # Replace three dots '...' in a row with ellipsis symbol
+    total_length = len(temp)
+    temp = re.sub(r'[_\s()]', '', temp)
+    temp_len = len(temp) # Initial length of message without '_', spaces, (, or ) 
+    non_alnum_len = len(re.sub(r'[\d\p{L}\p{M}]', '', temp)) # Length of temp string without '_', letters or numbers
+    if (temp_len - non_alnum_len == 0): # Message does not conatain any '_', letters or numbers
+        print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Length: {len(message)}")
         return ""
     elif total_length > 10:
-        cleaned = re.sub(r'(?<=[a-zA-Z]|\d|\s|^)\.\.\.?(?=)', '…', message) # Convert ... to ellipsis symbol and contract repeated dots
-        cleaned = re.sub(r'[+\-*/=<>^|~,.\\#\'":;_`¦]', '', cleaned)
-        cleaned_length = len(cleaned)
-        ratio = cleaned_length / total_length
-        if (ratio < 0.70):
-            print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Ratio: {ratio:.2f}, Length: {total_length}")
+        ratio = 1 - (non_alnum_len / total_length) # Ratio of alpha numperic characters to total length of message
+        if (ratio < 0.70): # The lower the ratio the more potential spam
+            print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
             return ""
+        elif (ratio < 0.80):
+            print(f"IGNORED! Message '{message}' has been cleaned of suspected gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
+            message = re.sub(r'[^\d\p{L}\p{M}\s,.]', '', message).strip() # Remove all but letters and basic puctuation
 
     return message
 
