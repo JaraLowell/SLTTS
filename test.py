@@ -11,9 +11,9 @@ def ascii_name(name):
     name = name.strip().title()
     return name
 
-tmp = "Tʜᴇ Cᴏɪɴ Gɪʀʟ¿".lower()
+tmp = "ღSαɾαнღ".lower()
 
-print(f"unicodedata : {unidecode(tmp, errors='ignore', replace_str='').title()}")
+print(f"unicodedata : {unidecode(tmp, errors='ignore', replace_str='¿').title()}")
 toprnt = ""
 
 script_names = set()

@@ -678,6 +678,8 @@ async def monitor_log(log_file):
                                                 if clean_name(tmp_speaker):
                                                     first_name = tmp_speaker
 
+                                            logging.warning(f"Avatar Name: {speaker_part}, UniDecode: {tmp_speaker} Result Speaker: {first_name}")
+
                                             if first_name:
                                                 # remove trailing numbers
                                                 first_name = re.sub(r'(?<!\p{L})\d+$', '', first_name)
