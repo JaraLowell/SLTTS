@@ -662,6 +662,8 @@ async def monitor_log(log_file):
                                             
                                             # Try to split camel case (e.g., MsLaiken -> Ms Laiken or MsLaniSmit > Ms Lani Smit)
                                             # speaker = " ".join(re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?![a-z])', speaker))
+                                            
+                                            # Use unidecode to transliterate the speaker name
                                             tmp_speaker = unidecode(speaker.lower(), errors='ignore', replace_str='¿').title()
 
                                             if speaker == 'Second Life':
@@ -679,14 +681,16 @@ async def monitor_log(log_file):
                                                 if clean_name(tmp_speaker):
                                                     first_name = tmp_speaker
 
+                                            # Remove leading numbers only if followed by a non-digit, and trailing numbers only if preceded by a non-digit
+                                            first_name = re.sub(r'^\d+(?=\D)|(?<=\D)\d+$', '', first_name)
+
+                                            # Replace known display name/gibberish name with replacement name in slang replacements
+                                            if first_name in slang_replacements:
+                                                first_name = slang_replacements[first_name]
+
                                             logging.warning(f"Avatar Name: {speaker_part}, UniDecode: {tmp_speaker} Result Speaker: {first_name}")
 
                                             if first_name:
-                                                # remove trailing numbers
-                                                first_name = re.sub(r'\d+$', '', first_name)
-                                                # Replace known display name/gibberish name with replacement name in slang replacements
-                                                if first_name in slang_replacements:
-                                                    first_name = slang_replacements[first_name]
                                                 name_cache[speaker_part] = (first_name, gender, thisvoice)
                                                 if thisvoice is not None:
                                                     logging.warning(f"Speaker {first_name} Gender set to {gender} and Assigned voice to {thisvoice}")
