@@ -648,9 +648,9 @@ async def monitor_log(log_file):
                                             if '(' in speaker_part and ')' in speaker_part:
                                                 speaker = speaker_part.split('(')[1].split(')')[0].strip()
                                                 if '.' in speaker:
-                                                    first_name = speaker.split('.')[0].capitalize()
+                                                    first_name = speaker.split('.')[0]
                                                 else:
-                                                    first_name = speaker.capitalize()
+                                                    first_name = speaker
                                                 speaker = speaker_part.split('(')[0].strip()
                                             else:
                                                 speaker = speaker_part
@@ -661,21 +661,22 @@ async def monitor_log(log_file):
                                             
                                             # Try to split camel case (e.g., MsLaiken -> Ms Laiken or MsLaniSmit > Ms Lani Smit)
                                             # speaker = " ".join(re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?![a-z])', speaker))
+                                            tmp_speaker = unidecode(speaker.lower(), errors='ignore', replace_str='¿').title()
 
                                             if speaker == 'Second Life':
                                                 first_name = None
-                                            elif " " in speaker:
-                                                tmp = (re.sub(r'\s+', ' ', speaker).strip()).split(' ')
+                                            elif " " in tmp_speaker:
+                                                tmp = (re.sub(r'\s+', ' ', tmp_speaker).strip()).split(' ')
                                                 salutations = {"lady", "lord", "sir", "miss", "ms", "mr", "mrs", "dr", "prof", "the", "master", "mistress", "madam", "madame", "dame", "captain", "chief", "colonel", "general", "admiral", "officer", "agent", "dj"}
                                                 if all(part.isalnum() for part in tmp):
                                                     if tmp[0].lower() in salutations and len(tmp) > 1:
                                                         if clean_name(tmp[1]):
-                                                            first_name = ascii_name(tmp[1])
+                                                            first_name = tmp[1]
                                                     elif clean_name(tmp[0]):
-                                                        first_name = ascii_name(tmp[0])
-                                            elif speaker.isalnum():
-                                                if clean_name(speaker):
-                                                    first_name = ascii_name(speaker)
+                                                        first_name = tmp[0]
+                                            elif tmp_speaker.isalnum():
+                                                if clean_name(tmp_speaker):
+                                                    first_name = tmp_speaker
 
                                             if first_name:
                                                 # remove trailing numbers
