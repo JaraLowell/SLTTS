@@ -5,7 +5,7 @@
 import sys
 import os
 import logging
-logging.basicConfig(filename='sltts.log', level=logging.DEBUG, format='%(asctime)s : %(message)s', datefmt='%m-%d %H:%M', filemode='w')
+logging.basicConfig(filename='sltts.log', level=logging.DEBUG, format='%(asctime)s : %(message)s', datefmt='%m-%d %H:%M', filemode='w', encoding='utf-8')
 logging.error("Startin Up")
 
 import asyncio
