@@ -682,7 +682,7 @@ async def monitor_log(log_file):
 
                                             if first_name:
                                                 # remove trailing numbers
-                                                first_name = re.sub(r'(?<!\p{L})\d+$', '', first_name)
+                                                first_name = re.sub(r'\d+$', '', first_name)
                                                 # Replace known display name/gibberish name with replacement name in slang replacements
                                                 if first_name in slang_replacements:
                                                     first_name = slang_replacements[first_name]
