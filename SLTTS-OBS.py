@@ -126,11 +126,14 @@ def spell_check_message(message):
     if not message:
         return ""  # Return empty string if message is empty
 
+    # Replace double spaces with a single space
+    message = re.sub(r'\s+', ' ', message).strip()
+
+    # Collapse repeated characters (3 or more)
+    message = re.sub(r'([^0-9])\1{3,}', r'\1', message)
+
     # Collapse repeated grapheme clusters (including emoji)
     message = re.sub(r'(\X)\1{3,}', r'\1', message)
-
-    # Replace emojis with their descriptive words
-    message = emoji.replace_emoji(message, replace=emoji_to_word)
 
     if len(message) == 1:
         return message
@@ -178,14 +181,8 @@ def spell_check_message(message):
     forbidden_categories = ["So", "Mn", "Mc", "Me", "C", "Sk"]
     message = "".join(c for c in message if unicodedata.category(c) not in forbidden_categories)
 
-    # Collapse repeated characters (3 or more)
-    message = re.sub(r'([^0-9])\1{3,}', r'\1', message)
-
     if len(message) > 1:
         message = message[0].upper() + message[1:]
-
-    # Replace double spaces with a single space
-    message = re.sub(r'\s+', ' ', message).strip()
 
     # Remove gibberish
     temp = re.sub(r'(?<=\p{L}|\p{M}|\d|\s|^)\.\.\.?(?=)', '…', message) # Replace three dots '...' in a row with ellipsis symbol
@@ -203,7 +200,11 @@ def spell_check_message(message):
             return ""
         elif (ratio < 0.80):
             print(f"IGNORED! Message '{message}' has been cleaned of suspected gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
-            message = re.sub(r'[^\d\p{L}\p{M}\s,.]', '', message).strip() # Remove all but letters and basic puctuation
+            message = re.sub(r'[^\d\p{L}\p{M}\s,.;:\'"?!/\-]', ' ', message).strip() # Remove all but letters and basic puctuation
+            message = re.sub(r'\s+', ' ', message).strip()
+
+    # Replace emojis with their descriptive words
+    message = emoji.replace_emoji(message, replace=emoji_to_word)
 
     return message
 
