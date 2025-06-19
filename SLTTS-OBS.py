@@ -85,19 +85,20 @@ def clean_name(name):
             continue
 
         # as a test removing "WITH" in script_name or 
-        if "SMALL CAPITAL" in script_name:
+        if "SMALL CAPITAL" in script_name: # Small Capitals will convert to ASCII Latin so keep then
             # Seriously ! ŦorestŞheŨrt is Latin ... but with stroke F, cedilla S and tilde U
             script_name = script_name.split()[0] + ' Extended'
         elif "DIGIT" in script_name:
-            # We do want to keep numbers as LATIN, or thay get aded as DIGIT
-            script_name = 'LATIN'
+            # We want to exclude digits from being counted as different scripts since they are used in all languages
+            script_name = ''
         else:
             script_name = script_name.split()[0]
 
-        if script_name not in script_names:
+        if script_name != '' and script_name not in script_names:
             script_names.add(script_name)
+            if len(script_names) > 1: return False
 
-    if len(script_names) == 1: # and "LATIN Extended" not in script_names:
+    if len(script_names) <= 1: # and "LATIN Extended" not in script_names:
         return True
 
     return False
@@ -125,15 +126,35 @@ def spell_check_message(message):
     global Enable_Spelling_Check, tool, slang_replacements
     if not message:
         return ""  # Return empty string if message is empty
+    elif len(message) == 1:
+        return message
 
-    # Replace double spaces with a single space
-    message = re.sub(r'\s+', ' ', message).strip()
+    # Collapse repeated grapheme clusters (including emoji) processing each cluster individually for spam
+    word_parts = re.findall(r"\S+", message)
+    message = ''
+    for word in word_parts: # Analyse individual clusters for spam
+        _word = re.sub(r'[^\d]', '', word)
+        if len(_word) < 4: # Each word being checked can contain 3 numbers or less
+            #word = emoji.replace_emoji(word, replace=emoji_to_word) # Replace common emojis with their names. This will introduce more spam if used and become counter-productive. 
+            word = re.sub(r'(\.)\1{3,}', r' ', word) # Allow ellipsis '...' to pass since is is used in roleplay, but replace larger patterns of dots with white space
+            word = re.sub(r'(\X)\1{3,}', r'\1', word) # Throttle repeated characters to 3
+            temp = re.sub(r'[_]', '', word) # Remove _ since regex treats it as alphanumeric
+            temp_len = len(temp) # Initial length of message without '_'
+            non_alnum_len = len(re.sub(r'[\d\p{L}\p{M}]', '', temp)) # Length of string without '_', letters or numbers
+            if (temp_len - non_alnum_len == 0): # Word does not contain any '_', letters or numbers so consider it spam
+               if temp_len > 3:
+                   word = ''
+               else:
+                   temp = re.sub(r'[+=*./\-?!"\':;,()$£€¥]{1,}', '', temp) # These characters can be spoken or emoted in English so should not be counted as spam
+                   if temp_len == len(temp):
+                        word = ''
+            elif clean_name(re.sub(r'[^\d\p{L}\p{M}]', '', word)) == False: # If word contains characters in more than one language regard it as spam 
+                word = ''
+            word = re.sub(r'\.\*', '. *', word) # Edge tts says 'dot asterisk' instead of 'asterisk' if asterisk appears after a full-stop so spilt '.*' using a space 
+        if (word != ''): message = message + " " + word # Reconstruct sentence word by word while appending spaces
+    message = message.strip()
 
-    # Collapse repeated characters (3 or more)
-    message = re.sub(r'([^0-9])\1{3,}', r'\1', message)
-
-    # Collapse repeated grapheme clusters (including emoji)
-    message = re.sub(r'(\X)\1{3,}', r'\1', message)
+    #message = re.sub(r'(\X)\1{3,}', r'\1', message) # Replaced with above code so is no longer needed
 
     if len(message) == 1:
         return message
@@ -142,11 +163,16 @@ def spell_check_message(message):
     # message = re.sub(r'[^\p{L}\d\s\p{P}+\-*/=<>^|~]', '', message, flags=re.UNICODE)  # Remove unsupported characters
 
     # Replace L$ with Linden Dollars
-    message = re.sub(r"\bL\$", "Linden dollars", message, flags=re.IGNORECASE)
+    message = re.sub(r'(\d+.+|\s\d+.+|$) (L\$)', r'\1 Linden dollars', message, flags=re.IGNORECASE) # Replace symbol at end off number+space
+    message = re.sub(r"(\bL\$) (\d+.+|\s\d+.+|$)", r"\2 Linden dollars", message, flags=re.IGNORECASE) # Replace symbol at start of number+space and swap to the end
+    message = re.sub(r'(\d+.+|\s\d+.+|$)(L\$)', r'\1 Linden dollars', message, flags=re.IGNORECASE) # Replace symbol at end off number
+    message = re.sub(r"(\bL\$)(\d+.+|\s\d+.+|$)", r"\2 Linden dollars", message, flags=re.IGNORECASE) # Replace symbol at start of number and swap to the end
+    message = re.sub(r"\bL\$", r"Linden dollars", message, flags=re.IGNORECASE) # Replace elsewhere
 
     # Replace hyphen with "minus" or space based on context
-    message = re.sub(r'(?<=\d)-(?=\d|\=)', ' to ', message) # Dash denotes a sequence from-to if paced directly next to numbers like 30-40 degrees
-    message = re.sub(r'(?<=\w)-(?=\w)', '', message) # Hyphen is dropped in-between/inbetween words joining them together for correct grammar.
+    #message = re.sub(r'(?<=\d)-(?=\d|\=)', ' to ', message) # Dash denotes a sequence from-to if paced directly next to numbers like 30-40 degrees. Edge tts can already do this.
+    #message = re.sub(r'(?<=\w)-(?=\w)', '', message) # Hyphen is dropped in-between/inbetween words joining them together for correct grammar. 
+    # Counter productive on some words and it conflicts with the replacement of abbreviations and slang in the next block of code
 
     # Replace common abbreviations v3.2 slang replacements
     for slang, replacement in slang_replacements.items():
@@ -181,39 +207,47 @@ def spell_check_message(message):
     forbidden_categories = ["So", "Mn", "Mc", "Me", "C", "Sk"]
     message = "".join(c for c in message if unicodedata.category(c) not in forbidden_categories)
 
+    # Collapse repeated characters (3 or more)
+    message = re.sub(r'([^0-9])\1{3,}', r'\1', message)
+
     if len(message) > 1:
         message = message[0].upper() + message[1:]
 
+    # Replace double spaces with a single space
+    message = re.sub(r'\s+', ' ', message).strip()
+
     # Remove gibberish
-    temp = re.sub(r'(?<=\p{L}|\p{M}|\d|\s|^)\.\.\.?(?=)', '…', message) # Replace three dots '...' in a row with ellipsis symbol
-    total_length = len(temp)
-    temp = re.sub(r'[_\s()]', '', temp)
-    temp_len = len(temp) # Initial length of message without '_', spaces, (, or ) 
-    non_alnum_len = len(re.sub(r'[\d\p{L}\p{M}]', '', temp)) # Length of temp string without '_', letters or numbers
-    if (temp_len - non_alnum_len == 0): # Message does not conatain any '_', letters or numbers
-        print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Length: {len(message)}")
-        return ""
-    elif total_length > 10:
-        ratio = 1 - (non_alnum_len / total_length) # Ratio of alpha numperic characters to total length of message
-        if (ratio < 0.70): # The lower the ratio the more potential spam
+    total_length = len(message)
+    temp = re.sub(r'(?<=\p{L}|\p{M}|\d|\s|^)\.\.\.?(?=)', '…', message) # Replace three dots '...' in a row with ellipsis symbol to count them as one character only
+    temp = re.sub(r'[_\s]', '', temp) # Don't count _ and white space as part of length
+    temp_len = len(temp) # Initial length of processed message without '_' and spaces
+    non_alnum_len = len(re.sub(r'[\d\p{L}\p{M}]', '', temp)) # Length of temp string without '_' and spaces
+    if (temp_len - non_alnum_len == 0): # Message does not contain any '_', letters or numbers so might be spam
+        if temp_len == len(re.sub(r'[()"]', '', temp)): # Protect bracketed or quoted content. May or may not be desired
+            print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Length: {len(message)}")
+            return ""
+    if total_length > 10: # Short sentances could contain emijis so let them pass and filter longer content
+        if re.search(r'\d', temp): # Prevent sequences of numbers separated by commas, dots, and currency from being counted as spam
+            temp = re.sub(r'([$£€¥])(\d+)', r'\2', temp) # Ignore main international currency symbols if before numbers
+            temp = re.sub(r'(?<=\d|^)[,.]?(?=)', '', temp) # Stops "$1,000,000 !!!" and other numbers separated by dots or commas being regarded as spam
+        non_alnum_len = len(re.sub(r'[\d\p{L}\p{M}()"]', '', temp)) # Protect bracketed or quoted content
+        ratio = 1 - (non_alnum_len / total_length) # Ratio of alpha numeric characters to total length of message
+        if (ratio < 0.70 - 1/total_length): # Using a dynamic threshold the lower the ratio the more potential spam
             print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
             return ""
-        elif (ratio < 0.80):
-            print(f"IGNORED! Message '{message}' has been cleaned of suspected gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
-            message = re.sub(r'[^\d\p{L}\p{M}\s,.;:\'"?!/\-]', ' ', message).strip() # Remove all but letters and basic puctuation
-            message = re.sub(r'\s+', ' ', message).strip()
-
-    # Replace emojis with their descriptive words
-    message = emoji.replace_emoji(message, replace=emoji_to_word)
+        elif (ratio < 0.80): # Message might still contain spam so try to clean it
+            print(f"IGNORED! Message '{message}' may have been cleaned of suspected gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
+            message = re.sub(r'[^\d\p{L}\p{M}\s,.;:\'"?!/\-+*=()£$€¥%]', ' ', message).strip() # Remove all but letters, digits, and basic punctuation
+            message = re.sub(r'\s+', ' ', message).strip() # Clean out excess white space the might have been added
 
     return message
 
 def guess_gender_and_voice(first_name):
     global window, EdgeVoice
     # Precompiled regex patterns for efficiency
-    female_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['ss', 'ia', 'et', '[aeiou]ko', 'yl', 'ah', 'iya', 'it', 'li', 'yn', 'th', 'ey', '[pbv]ril', 'gail', 'at', 'bby', 'ndy', 'py', 'any', '[^n]ny', 'un', 'ssy', 'ele', 'iel', 'ell']]
-    male_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['el', 'hu', 'ya', 'ge', 'pe', 're', 'ce', 'de', 'le']]
-    male_exceptions = [re.compile(pat, re.IGNORECASE) for pat in [r'\bGiora\b', r'\bEzra\b', r'\bElisha\b', r'\bAkiva\b', r'\bAba\b', r'\bAmit\b', r'kko\Z', r'Sasha', r'\bAndy\b', r'\bPhil\b']]
+    female_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['ss', 'ia', 'et', '[aeiou]ko', 'yl', 'ah', 'iya', 'it', 'yn', 'th', 'ey', '[pbv]ril', 'gail', 'at', 'bby', 'ndy', 'py', 'any', '[^n]ny', 'ssy', 'iel', 'ell']]
+    male_endings = [re.compile(ending + r'\Z', re.IGNORECASE) for ending in ['el', 'hu', 'ya', 'ge', 'pe', 're', 'ce', 'de']]
+    male_exceptions = [re.compile(pat, re.IGNORECASE) for pat in [r'\bGiora\b', r'\bEzra\b', r'\bElisha\b', r'\bAkiva\b', r'\bAba\b', r'\bAmit\b', r'kko\Z', r'\bSasha\b', r'\bAndy\b', r'\bPhil\b']]
     female_exceptions = [re.compile(pat, re.IGNORECASE) for pat in [r'Bint', r'\bRachael\b', r'\bRachel\b', r'\bLael\b', r'\bLiel\b', r'\bYael\b', r'\bGal\b', r'\bRain\b', r'\bSky\b', r'\bJill\b', r'\bAgnes\b', r'\bMary\b', r'\bKaren\b', r'\bErin\b', r'\bMerav\b', r'\bSharon\b']]
 
     _first_name = re.sub(r'[0-9]', '', first_name).lower()
@@ -704,6 +738,14 @@ async def monitor_log(log_file):
                                                     logging.warning(f"Speaker {first_name} Gender set to {gender} and Assigned voice to {thisvoice}")
                                                     # Lets cashe this so we not check this ever damn time
                                                     name_cache[speaker_part] = (first_name, gender, thisvoice)
+
+                                            if "MultilingualNeural" not in thisvoice:
+                                                message = re.sub(r'(£)(\d+.+|\s\d+.+|$)', r'\2 pounds sterling', message) # Fix currency before decoding in ASCII
+                                                message = re.sub(r'£', r'pounds sterling ', message)
+                                                message = re.sub(r'(¥)(\d+.+|\s\d+.+|$)', r'\2 yen', message)
+                                                message = re.sub(r'¥', r'yen ', message)
+                                                message = message = re.sub(r'\s+', ' ', message).strip()
+                                                message = unidecode(message).strip()
 
                                             if last_user != speaker_part or last_message == None:
                                                 last_user = speaker_part
