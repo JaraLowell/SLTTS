@@ -11,7 +11,7 @@ def ascii_name(name):
     name = name.strip().title()
     return name
 
-tmp = "ღSαɾαнღ".lower()
+tmp = "ʏʊռɢ ɢʊռʐ ɢʊʐɱǟռ".lower()
 
 print(f"unicodedata : {unidecode(tmp, errors='ignore', replace_str='¿').title()}")
 toprnt = ""

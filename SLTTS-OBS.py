@@ -48,6 +48,8 @@ pygame.mixer.music.set_volume(0.75)  # Set volume to 50%
 
 # Flag to indicate whether audio is currently playing
 is_playing = False
+request = 0 # speak_text is request 0, stop_monitoring is request 1
+thread = 1 # speak_text is thread 0, stop_monitoring is thread 1
 last_message = None
 last_user = None
 last_voice = None
@@ -332,7 +334,15 @@ output_file_counter = 0
 
 async def speak_text(text2say, VoiceOverride=None):
     """Use Edge TTS to speak the given text."""
-    global is_playing, EdgeVoice, output_file_counter, window
+    global is_playing, EdgeVoice, output_file_counter, window, request, thread
+
+    #Lock the other thread out or give way based on a race condition being met
+    thread = 0 # Either speak_text gets to this point first or stop_monitoring has requested the thread earlier
+    if request == 1: # Give the lock to thread 1 if asked otherwise this thread will execute in full and give way to then other thread when it ends
+        thread = 1
+
+    while thread == 1: 
+        time.sleep(0.25)
 
     # Wait until the current audio finishes
     while is_playing:
@@ -383,6 +393,8 @@ async def speak_text(text2say, VoiceOverride=None):
         # Clean up and reset the flag
         pygame.mixer.music.unload()
         is_playing = False
+
+    thread = 1 # Give way to Stop Log Reading/stop_monitoring() when finished
 
 # List to store chat messages for the website
 chat_messages = []
@@ -573,7 +585,7 @@ async def start_server():
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
     # await speak_text("Starting up! Monitoring log file...")
-    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char, name2voice, last_voice, SpeakOnlyList, slang_replacements
+    global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char, name2voice, last_voice, SpeakOnlyList, slang_replacements, window
 
     # Start at the end of the file
     last_position = 0
@@ -614,6 +626,7 @@ async def monitor_log(log_file):
                             if line:
                                 # Process the line (existing logic)
                                 try:
+                                    window.start_busy()
                                     if line.startswith("[20"):
                                         isemote = False
                                         isrepat = False
@@ -827,12 +840,16 @@ async def monitor_log(log_file):
                                         if match:
                                             rest = match.group(1).strip()
                                         print(f"IGNORED! {url2word(rest).strip()}")
+    
                                 except ValueError:
                                     rest = line.strip()
                                     match = re.search(r'\d{2}\]\s*(.*)', line)
                                     if match:
                                         rest = match.group(1).strip()
                                     print(f"IGNORED! {url2word(rest).strip()}")
+
+                                window.stop_busy()
+
                             await asyncio.sleep(0.3) # Qt5 update_display might crash if we spam it too fast
                 except FileNotFoundError:
                     logging.error(f"Log file not found: {log_file}")
@@ -943,7 +960,12 @@ def start_monitoring(log_file_path):
 
 def stop_monitoring():
     """Stop the monitor_log task."""
-    global monitor_task, monitor_loop
+    global monitor_task, monitor_loop, request, thread
+
+    # Wait for other thread to give way
+    request = 1 # Ask speak_text to give way before any text is read
+    while thread == 0: # Wait for speak_text to finish or give way
+        time.sleep(0.25)
 
     if monitor_task is None:
         original_print("Log monitoring is not running.")
@@ -955,6 +977,9 @@ def stop_monitoring():
     if monitor_loop is not None:
         monitor_loop.stop()  # Stop the event loop
         monitor_loop = None
+
+    # Give control back to speak_text when started again
+    request = 0
 
 def update_lists():
     """Update the IgnoreList and SpeakOnlyList from the UI."""
@@ -1032,7 +1057,7 @@ if __name__ == "__main__":
         """Toggle monitoring based on the button state."""
         global last_toggle_time
         current_time = time.time()
-        if current_time - last_toggle_time < 3:  # Check if 3 seconds have passed
+        if current_time - last_toggle_time < 0.2:  # Check if 3 seconds have passed
             return
 
         last_toggle_time = current_time

@@ -16,6 +16,12 @@ class MainWindow(ctk.CTk):
         self.iconbitmap(icon_path)
         self.resizable(True, True)
 
+        # Busy indicator variables
+        self.is_busy = False
+        self.busy_chars = ["🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚", "🕛"]
+        self.busy_index = 0
+        self.busy_animation_id = None
+
         # Apply dark mode
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
@@ -38,8 +44,12 @@ class MainWindow(ctk.CTk):
         self.button_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         self.button_frame.grid(row=1, column=0, columnspan=2, sticky="n", pady=(2, 12))
 
+        # Status indicator (clock when busy, invisible when not)
+        self.status_indicator = ctk.CTkLabel(self.button_frame, text="  ", font=("Consolas", 20))
+        self.status_indicator.grid(row=0, column=0, padx=5)
+
         self.start_button = ctk.CTkButton(self.button_frame, text="Start Log Reading", text_color="#d1d1d1", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
-        self.start_button.grid(row=0, column=0, padx=5)
+        self.start_button.grid(row=0, column=1, padx=5)
 
         '''
         self.spelling_check_button = ctk.CTkButton(self.button_frame, text="Toggle Spelling Check", text_color="#d1d1d1", font=("Consolas", 14, "bold"), command=self.toggle_spelling_check, width=220, border_width=1, border_color="#888888")
@@ -169,6 +179,26 @@ class MainWindow(ctk.CTk):
     def on_close(self):
         self.save_config()
         self.destroy()
+
+    def start_busy(self):
+        self.is_busy = True
+        self.busy_index = 0
+        self.busy_animation_id = self.after(100, self.update_busy_indicator)
+        self.status_indicator.configure(text=self.busy_chars[0])  # Show initial clock
+
+    def stop_busy(self):
+        self.is_busy = False
+        if self.busy_animation_id is not None:
+            self.after_cancel(self.busy_animation_id)
+            self.busy_animation_id = None
+        self.status_indicator.configure(text="  ")  # Hide status indicator
+
+    def update_busy_indicator(self):
+        if self.is_busy:
+            self.busy_index = (self.busy_index + 1) % len(self.busy_chars)
+            busy_indicator = self.busy_chars[self.busy_index]
+            self.status_indicator.configure(text=busy_indicator)
+            self.busy_animation_id = self.after(100, self.update_busy_indicator)
 
 def main(global_config):
     app = MainWindow(global_config)
