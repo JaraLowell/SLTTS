@@ -1081,14 +1081,16 @@ if __name__ == "__main__":
     window.audio_device_menu.configure(command=lambda value: set_audio_device(value))
   
     # speak_text("Starting up! Monitoring log file...")
-    window.test_button.configure(command=lambda: asyncio.run(speak_test_message()))
-
-    # Override the print function to append to window.text_display
+    window.test_button.configure(command=lambda: asyncio.run(speak_test_message()))    # Override the print function to append to window.text_display
     original_print = print  # Keep a reference to the original print function
     def custom_print(*args, **kwargs):
         message = " ".join(map(str, args))  # Combine all arguments into a single string
-        if 'window' in globals() and hasattr(window, 'text_display'):
-            window.update_display(message)
+        try:
+            if 'window' in globals() and hasattr(window, 'text_display') and window.winfo_exists():
+                window.update_display(message)
+        except Exception:
+            # Window is destroyed or not available, just use original print
+            pass
 
         original_print(*args, **kwargs)  # Optionally, call the original print function
 
