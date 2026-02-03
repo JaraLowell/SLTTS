@@ -36,12 +36,18 @@
             word-wrap: break-word; /* Ensure long words or URLs wrap to the next line */
             text-shadow: -1px -1px 2px #000000d1, 1px -1px 0 #000000d1, -1px 1px 0 #000000d1, 1px 1px 0 #000000d1;
             transition: transform 0.5s ease, opacity 0.5s ease;
-            -webkit-filter: grayscale(100%);
-            filter: grayscale(100%);
             background: rgba(0, 0, 0, 0.74);
             border-radius: 5px;
             box-sizing: border-box;
             align-self: flex-start;
+        }
+        .chat-name {
+            color: #bfea7c; /* Username stays mint green */
+         }
+        .chat-message {
+            color: #e5e5e5; /* Message text is grey */
+            -webkit-filter: grayscale(100%);
+            filter: grayscale(100%);
         }
         @keyframes fadeout {
             0% { opacity: 1; } /* Fully visible */

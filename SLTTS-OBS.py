@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Needs > pip install edge-tts language_tool_python asyncio regex pygame unidecode
+# Needs > pip install edge-tts language_tool_python asyncio regex pygame unidecode emoji
 import sys
 import os
 import logging
@@ -399,6 +399,23 @@ async def speak_text(text2say, VoiceOverride=None):
 # List to store chat messages for the website
 chat_messages = []
 
+def format_chat_message(message):
+    """Format a chat message with separate styling for username and message text."""
+    # Check if message contains a colon separator (username: message format)
+    if '¿ ' in message:
+        parts = message.split('¿ ', 1)
+        username = html.escape(parts[0])
+        msg_text = html.escape(parts[1])
+        return f"<div class='chat-line'><span class='chat-name'>{username}</span><span class='chat-message'> {msg_text}</span></div>"
+    elif ': ' in message:
+        parts = message.split(': ', 1)
+        username = html.escape(parts[0])
+        msg_text = html.escape(parts[1])
+        return f"<div class='chat-line'><span class='chat-name'>{username}</span><span class='chat-message'>: {msg_text}</span></div>"
+    else:
+        # If no colon, it's just a plain message (no username)
+        return f"<div class='chat-line'><span class='chat-message'>{html.escape(message)}</span></div>"
+
 async def update_chat(message):
     """Update the chat messages for the internal server."""
     global chat_messages
@@ -432,7 +449,7 @@ async def sse_handler(request):
             if chat_messages:
                 new_messages = chat_messages[:]
                 messages_html = "".join(
-                    f"<div class='chat-line'>{html.escape(msg['message'])}</div>"
+                    format_chat_message(msg['message'])
                     for msg in new_messages
                 )
                 try:
@@ -517,6 +534,12 @@ async def chat_page_handler(request):
                 word-wrap: break-word; /* Ensure long words or URLs wrap to the next line */
                 text-shadow: -1px -1px 2px #000000d1, 1px -1px 0 #000000d1, -1px 1px 0 #000000d1, 1px 1px 0 #000000d1, 1px 1px 1px #000000, 0 0 1em #000000, 0 0 0.2em #000000;
                 transition: transform 0.5s ease, opacity 0.5s ease;
+            }
+            .chat-name {
+                color: #bfea7c; /* Username stays mint green */
+            }
+            .chat-message {
+                color: #e5e5e5; /* Message text is grey */
                 -webkit-filter: grayscale(100%);
                 filter: grayscale(100%);
             }
@@ -800,7 +823,7 @@ async def monitor_log(log_file):
                                                     print(f"{message}")
                                                 elif isemote:
                                                     to_speak = f"{first_name} {message}"
-                                                    to_cc = f"{first_name} {message}" if OBSChatFiltered else f"{first_name} {messageorg}"
+                                                    to_cc = f"{first_name}¿ {message}" if OBSChatFiltered else f"{first_name}¿ {messageorg}"
                                                     print(f"{to_speak}")
                                                 else:
                                                     to_speak = f"{first_name} {manner}: {message}"
