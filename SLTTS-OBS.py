@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Needs > pip install edge-tts pygame regex unidecode emoji aiohttp customtkinter
+# Needs > pip install edge-tts pygame-ce regex unidecode emoji aiohttp customtkinter
 import sys
 import os
 import logging
