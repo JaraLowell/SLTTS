@@ -780,7 +780,7 @@ async def monitor_log(log_file):
                                                 message = re.sub(r'£', r'pounds sterling ', message)
                                                 message = re.sub(r'(¥)(\S+|\s\S+|$)', r'\2 yen', message)
                                                 message = re.sub(r'¥', r'yen ', message)
-                                                message = message = re.sub(r'\s+', ' ', message).strip()
+                                                message = re.sub(r'\s+', ' ', message).strip()
                                                 message = unidecode(message).strip()
 
                                             if last_user != speaker_part or last_message == None:
@@ -855,6 +855,9 @@ async def monitor_log(log_file):
                                             message = re.sub(r'(£)(\S+|\s\S+|$)', r'\2 pounds sterling', message) # Fix currency before decoding in ASCII
                                             message = re.sub(r'£', r'pounds sterling ', message)
                                             message = re.sub(r'(¥)(\S+|\s\S+|$)', r'\2 yen', message)
+                                            message = re.sub(r'¥', r'yen ', message)
+                                            message = re.sub(r'\s+', ' ', message).strip()
+                                            message = unidecode(message).strip()
                                         if last_message != message and message:
                                             last_message = message
                                             print(f"{message}")
