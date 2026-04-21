@@ -1,0 +1,19 @@
+# To install all dependencies:
+# > pip install -r requirements.txt
+# Or to upgrade existing packages:
+# > pip install --upgrade -r requirements.txt
+
+# Core TTS and audio
+edge-tts>=6.1.12
+pygame>=2.6.1
+
+# Text processing
+regex>=2024.11.6
+unidecode>=1.3.8
+emoji>=2.14.0
+
+# Web server and async
+aiohttp>=3.11.10
+
+# GUI
+customtkinter>=5.2.2

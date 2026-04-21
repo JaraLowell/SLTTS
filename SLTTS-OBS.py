@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Needs > pip install edge-tts language_tool_python asyncio regex pygame unidecode emoji
+# Needs > pip install edge-tts pygame regex unidecode emoji aiohttp customtkinter
 import sys
 import os
 import logging
@@ -776,9 +776,9 @@ async def monitor_log(log_file):
                                                     name_cache[speaker_part] = (first_name, gender, thisvoice)
 
                                             if "MultilingualNeural" not in thisvoice:
-                                                message = re.sub(r'(£)(\d+.+|\s\d+.+|$)', r'\2 pounds sterling', message) # Fix currency before decoding in ASCII
+                                                message = re.sub(r'(£)(\S+|\s\S+|$)', r'\2 pounds sterling', message) # Fix currency before decoding in ASCII
                                                 message = re.sub(r'£', r'pounds sterling ', message)
-                                                message = re.sub(r'(¥)(\d+.+|\s\d+.+|$)', r'\2 yen', message)
+                                                message = re.sub(r'(¥)(\S+|\s\S+|$)', r'\2 yen', message)
                                                 message = re.sub(r'¥', r'yen ', message)
                                                 message = message = re.sub(r'\s+', ' ', message).strip()
                                                 message = unidecode(message).strip()
@@ -851,6 +851,10 @@ async def monitor_log(log_file):
                                         message = line.strip()
                                         message = url2word(message).strip()
                                         message = spell_check_message(message)
+                                        if "MultilingualNeural" not in thisvoice:
+                                            message = re.sub(r'(£)(\S+|\s\S+|$)', r'\2 pounds sterling', message) # Fix currency before decoding in ASCII
+                                            message = re.sub(r'£', r'pounds sterling ', message)
+                                            message = re.sub(r'(¥)(\S+|\s\S+|$)', r'\2 yen', message)
                                         if last_message != message and message:
                                             last_message = message
                                             print(f"{message}")
