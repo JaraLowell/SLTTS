@@ -5,7 +5,7 @@
 
 # Core TTS and audio
 edge-tts>=6.1.12
-pygame>=2.6.1
+pygame-ce>=2.5.0
 
 # Text processing
 regex>=2024.11.6
