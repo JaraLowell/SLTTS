@@ -37,6 +37,7 @@ class MainWindow(ctk.CTk):
         self.text_display.grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(0, 10))
         self.text_display.tag_config("R", foreground="#ff8080")
         self.text_display.tag_config("T", foreground="#a1a1a1")
+        self.text_display.tag_config("B", foreground="#8080ff")
         self.main_frame.rowconfigure(0, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
 
@@ -150,6 +151,9 @@ class MainWindow(ctk.CTk):
         if 'IGNORED! ' in message:
             message = message.replace("IGNORED! ", "")
             self.text_display.insert("end", message + "\n", "R")
+        elif 'TIMECODE! ' in message:
+            message = message.replace("TIMECODE! ", "")
+            self.text_display.insert("end", message + "\n", "B")
         else:
             self.text_display.insert("end", message + "\n")
         self.text_display.configure(state="disabled")
