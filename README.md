@@ -32,6 +32,9 @@ log_file_path = D:\SecondLife\Logs\SLAvatar_Name\chat.txt
 edge_tts_llm = en-US-EmmaMultilingualNeural
 ignore_list = zcs, gm
 obs_chat_filtered = True
+concurrent_edge_tts_threads = 3
+replay_chat = 0
+follow_timestamps = 1
 ```
 * log_file_path
   - The location of your Second Life Log File
@@ -47,6 +50,12 @@ obs_chat_filtered = True
   - Suports also Starts with, for example Talking Object v1, one could put in this line Talking Object*
 * obs_chat_filtered
   - Pass the original chat to obs or the adjusrted one (True or False)
+* concurrent_edge_tts_threads
+  - Convert the text to speech in up to 12 concurrent threads to read aloud multiple lines from the chat log without long gaps between them. Values from 2 to 3 should be sufficieant.
+* replay_chat
+  - Replay any selected chat log using the default voices or new voices assigned to each avatar. This fuction can be used to redub videos of Second Life events such as roleplay or the narration of dance troupe performancers or to add new narration. The default value is 0 which selects legacy behaviour. To replay the log set the value in the config file to 1 and restart the app
+* follow_timestamps
+  - If replay_chat is set to 1 setting follow_timestamps to 1 (default) will play back the chat log with the correct relative intervals between the chat messages in the chat log file. Setting the value to 0 will ignore the timestamp codes and read the next chat message as soon as the previous one has ended being spoken
 
 Second Life Viewer Settings:
 
