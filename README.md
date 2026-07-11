@@ -6,6 +6,7 @@ By Jaralowell
 - Watch Chat in a easy UI
 - Have an internal webpage where chat shows on, for OBS
 - Hear what people say, almost live
+- Replay chat logs with new or existing voices
 - Multiple voice options for Machinema
 - Turn Second Life Abbreviation to real words
 
@@ -62,7 +63,7 @@ Optional the slangreplce.json
     "afk": "away from keyboard"
 }
 ```
-An list of Abbreviation you seek to replace, each line ends with a , except the last one.
+A list of Abbreviation you seek to replace, each line ends with a , except the last one.
 
 Additionally one can make a name2voice.json file in the programs folder
 ```
@@ -70,4 +71,4 @@ Additionally one can make a name2voice.json file in the programs folder
     "Avatar Name (as how it is logged)": "Edge Voice to Use"
 }
 ```
-a List of names you want to assign a Edge Voice to, each line ends with a , except the last one.
+A List of names you want to assign a Edge Voice to, each line ends with a , except the last one.
