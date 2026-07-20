@@ -7,6 +7,7 @@ By Jaralowell
 - Have an internal webpage where chat shows on, for OBS
 - Hear what people say, almost live
 - Replay chat logs with new or existing voices
+- Record spoken chat to mp3 file including at high speed in replay mode
 - Multiple voice options for Machinema
 - Turn Second Life Abbreviation to real words
 
