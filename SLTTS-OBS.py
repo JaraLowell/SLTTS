@@ -24,6 +24,7 @@ import json
 from SLTTSUI import MainWindow
 import threading
 import builtins
+import shutil
 
 import emoji
 """
@@ -58,6 +59,7 @@ tool = None
 readloop = False
 play_volume = 0.75  # Default volume
 min_char = 2  # Default minimum characters
+verbose = 0
 
 def ascii_name(name):
     # Remove all non-letter characters except spaces (\d\s- to allow hyphenated names and numbers)
@@ -336,10 +338,11 @@ output_file_counter = 0
 current_player = 0
 speaker_active = []
 speakers = 3
+recording = ""
 
-async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, test_msg = False):
+async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), test_msg = False):
     """Use Edge TTS to speak the given text."""
-    global EdgeVoice, window, current_player, speaker_active, speakers
+    global EdgeVoice, window, current_player, speaker_active, speakers, recording, follow_timestamps, record, replay_chat, verbose
     
     if VoiceOverride is not None:
         EdgeVoice = VoiceOverride
@@ -385,8 +388,42 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, test_ms
 
         # Play the audio file
         if os.path.exists(output_file):
-            pygame.mixer.music.load(output_file)
-            pygame.mixer.music.play()
+            if not replay_chat or not record:
+                pygame.mixer.music.load(output_file)
+                pygame.mixer.music.play()
+            if not test_msg:
+                # Record audio output
+                if record:
+                    if follow_timestamps and os.path.exists('silence.mp3'):
+                        # add silence to fill time elapsed between sgements of spoken text
+                        if os.path.exists(recording):
+                            size = os.path.getsize(recording)
+                        else: size = 0
+                        duration = round(size/144 * 0.024,3) # total duration of mp3 recording so far, rounded to correct maths errors since the result can only contain 3 decimel figures
+                        if verbose: print(f"VERBOSE! Duration of recording {duration}s, File size {size} bytes, Total time elapsed {chat_delta}")
+                        padding = chat_delta.total_seconds() - duration # add these seconds of silence between chats to the end of the recording
+                        if verbose: print(f"VERBOSE! Seconds of padding needed {round(padding,3)}")
+                        if padding >= 60:
+                            minutes = int(padding / 60)
+                            padding = padding%60
+                            for i in range(minutes): 
+                                with open('silence.mp3', 'rb') as f2, open(recording, 'ab') as f1:
+                                    shutil.copyfileobj(f2, f1)
+                        if padding > 0:                 
+                            with open("silence.mp3", 'rb') as file1:
+                                silence = file1.read()
+                            frames = int(padding/0.024 + 0.5) # number of frames needed where each frame is 0.024s
+                            bytes2write = int(frames * 144) # number of bytes used by these frames
+                            if verbose: print(f"VERBOSE! Bytes needed {bytes2write}")
+                            f2 = silence[:bytes2write]
+                            fileout = open(recording, 'ab')
+                            fileout.write(f2)
+                            fileout.close()                  
+                    # append mp3 tts file to recording
+                    with open(output_file, 'rb') as f2, open(recording, 'ab') as f1:
+                        shutil.copyfileobj(f2, f1)
+                        f1.close()
+                        f2.close()
         else:
             print(f"Output file not found: {output_file}")
             logging.error(f"Output file not found: {log_file}")
@@ -623,11 +660,46 @@ async def start_server():
 
 replay_chat = False
 follow_timestamps = True
+record = False
+stamp_read = False
+
+def name_recording():
+    global recording
+    # generate unique name for audio recording file
+    dtm = datetime.now()
+    if dtm.microsecond >= 500000:
+        dtm = dtm + timedelta(seconds=1)
+        dtm = dtm.replace(microsecond=0)
+    else: dtm = dtm.replace(microsecond=0)
+    dtmstr = f"{dtm}".replace(":","-")
+    recording = f"Chat {dtmstr}.mp3"
+    c = 1
+    while os. path.exists(recording) and c<1000:
+        recording = f"Chat {dtmstr} ({c}).mp3"
+        c = c + 1
+    if c > 1000: 
+        print(f"WARNING! {recording} already exists.")
+        return False
+    print(f"Audio will be recorded to .\{recording} while reading chat log.")
+    return True
+ 
+async def stopped_speaking():
+    global window, speakers, speaker_active, thread
+    window.start_busy()
+    while(True): # wait for speakers to finish speaking and close open .mp3 files
+        i = 0
+        for s in range(speakers):
+            i = i + speaker_active[s]
+        if i == 0:
+            break
+        await asyncio.sleep(0.25)
+    thread = 1
+    return thread
 
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
     global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char, name2voice, last_voice, SpeakOnlyList, slang_replacements, window
-    global current_player, output_file_counter, speaker_active, speakers, request, thread
+    global current_player, output_file_counter, speaker_active, speakers, request, thread, recording, record, stamp_read
     # await speak_text("Starting up! Monitoring log file...", "en-US-EmmaMultilingualNeural", speakers, True)
     thread = 0
     request = 0
@@ -642,6 +714,7 @@ async def monitor_log(log_file):
     date_stamp = initial_stamp = datetime.strptime(epoch_time, date_format)
     start_time = datetime.now()
     stamp_read = False
+    chat_delta = timedelta(seconds=0)
 
     # initiate playback counter and playback task lists for simultaneous tts encoders
     current_player = output_file_counter = 0
@@ -672,18 +745,11 @@ async def monitor_log(log_file):
     iswarned = False
 
     try:
+        # start reading the chat log
         while readloop:
             if request: # request made to stop monitoring
-                window.start_busy()
-                while(True): # wait for speakers to finish speaking and close open .mp3 files
-                    i = 0
-                    for s in range(speakers):
-                        i = i + speaker_active[s]
-                    if i == 0: 
-                        break
-                    await asyncio.sleep(0.25)
-                thread = 1
-                return
+                if await stopped_speaking(): 
+                    return
             current_mod_time = os.path.getmtime(log_file)
             # Check if the file has been modified
             if current_mod_time != last_mod_time or replay_chat:
@@ -700,19 +766,12 @@ async def monitor_log(log_file):
                             iswarned = True
                             await asyncio.sleep(0.3)
                         last_position = file.tell()  # Update the last position after reading
-
+                        if replay_chat and len(new_lines):
+                            log_read = True
                         for line in new_lines:
                             if request: # request made to stop monitoring
-                                window.start_busy()
-                                while(True): # wait for speakers to finish speaking and close open .mp3 files
-                                    i = 0
-                                    for s in range(speakers):
-                                        i = i + speaker_active[s]
-                                    if i == 0: 
-                                        break
-                                    await asyncio.sleep(0.25)
-                                thread = 1
-                                return
+                                if await stopped_speaking(): 
+                                    return
                             line = line.strip()
                             if line:
                                 # Process the line (existing logic)
@@ -725,7 +784,7 @@ async def monitor_log(log_file):
                                         timestamp, rest = line[1:].split(']', 1)
                                         """Begin Replay Chat Log Code"""
                                         # Read chat log file from start to end
-                                        if replay_chat and follow_timestamps:
+                                        if follow_timestamps and (replay_chat or record):
                                             # convert SL timestamp to a datetime object used by Python
                                             date_time = timestamp.replace("/","-")
                                             if len(date_time) is 19:
@@ -740,7 +799,7 @@ async def monitor_log(log_file):
 
                                             if not stamp_read:
                                                 start_time = datetime.now()
-                                                time_delta = start_time - start_time
+                                                time_delta = timedelta(seconds=0)
                                                 initial_stamp = new_stamp
                                                 stamp_read = True
                                             else:
@@ -757,12 +816,16 @@ async def monitor_log(log_file):
                                                 dtm = dtm + timedelta(seconds=1)
                                                 dtm = dtm.replace(microsecond=0)
                                             else: dtm = dtm.replace(microsecond=0)
-                                            print(f"TIMECODE! Waiting {time_delta.total_seconds()} seconds until {dtm + chat_delta} for next line.")
                                       
-                                            if stamp_read:
+                                            if not record and stamp_read and replay_chat:
                                                 # wait untill time difference reaches delta
+                                                print(f"TIMECODE! Waiting {time_delta.total_seconds()} seconds until {dtm + chat_delta} for next line.")
                                                 while (datetime.now() - start_time) < chat_delta:
-                                                    await asyncio.sleep(1.00)  
+                                                    if request: # request made to stop monitoring
+                                                        if await stopped_speaking(): 
+                                                            return
+                                                    await asyncio.sleep(1.00)
+                                        else: chat_delta = timedelta(seconds=0)
                                         """End Replay Chat Log Code"""
                                         # speaker can exist in the following formats:
                                         # [20:00:00] Firstname: Hello
@@ -850,7 +913,7 @@ async def monitor_log(log_file):
                                                 first_name = None
                                             elif " " in tmp_speaker:
                                                 tmp = (re.sub(r'\s+', ' ', tmp_speaker).strip()).split(' ')
-                                                salutations = {"lady", "lord", "sir", "miss", "ms", "mr", "mrs", "dr", "prof", "the", "master", "mistress", "madam", "madame", "dame", "captain", "chief", "colonel", "general", "admiral", "officer", "agent", "dj"}
+                                                salutations = {"lady", "lord", "sir", "miss", "ms", "mr", "mrs", "dr", "prof", "the", "master", "mistress", "madam", "madame", "dame", "captain", "chief", "colonel", "general", "admiral", "officer", "agent", "dj", "jarl"}
                                                 if all(part.isalnum() for part in tmp):
                                                     if tmp[0].lower() in salutations and len(tmp) > 1:
                                                         if clean_name(tmp[1]):
@@ -972,10 +1035,11 @@ async def monitor_log(log_file):
                                                     # Speak text
                                                     if play_volume > 0:
                                                         speaker_active[output_file_counter] = 1
-                                                        task1[output_file_counter] = asyncio.create_task(speak_text(to_speak, thisvoice, output_file_counter))
+                                                        task1[output_file_counter] = asyncio.create_task(speak_text(to_speak, thisvoice, output_file_counter, chat_delta))
                                                         if speakers == 1: await task1[output_file_counter]
                                                         # Rotate to next output file
-                                                        output_file_counter = (output_file_counter + 1) % speakers     
+                                                        output_file_counter = (output_file_counter + 1) % speakers
+                                                    #chat_delta = timedelta(seconds=0)
                                                 last_chat = time.time()
 
                                             elif messageorg:
@@ -1060,7 +1124,7 @@ async def monitor_log(log_file):
                                                 # Speak text
                                                 if play_volume > 0:
                                                     speaker_active[output_file_counter] = 1
-                                                    task1[output_file_counter] = asyncio.create_task(speak_text(message, last_voice, output_file_counter))
+                                                    task1[output_file_counter] = asyncio.create_task(speak_text(message, last_voice, output_file_counter, chat_delta))
                                                     if speakers == 1: await [output_file_counter]
                                                     # Rotate to next output file
                                                     output_file_counter = (output_file_counter + 1) % speakers
@@ -1070,7 +1134,6 @@ async def monitor_log(log_file):
                                         if match:
                                             rest = match.group(1).strip()
                                         print(f"IGNORED! {url2word(rest).strip()}")
-    
                                 except ValueError:
                                     rest = line.strip()
                                     match = re.search(r'\d{2}\]\s*(.*)', line)
@@ -1079,7 +1142,6 @@ async def monitor_log(log_file):
                                     print(f"IGNORED! {url2word(rest).strip()}")
 
                                 window.stop_busy()
-
                             await asyncio.sleep(0.3) # Qt5 update_display might crash if we spam it too fast
                 except FileNotFoundError:
                     logging.error(f"Log file not found: {log_file}")
@@ -1087,6 +1149,9 @@ async def monitor_log(log_file):
                     logging.error(f"Error reading log file IO Error: {e}")
                 except Exception as e:
                     logging.error(f"Error reading log file Unexpected error: {e}")
+            if replay_chat and log_read:
+                print("There are no more lines to speak. Stop log reading or add new lines to the chat log to be spoken.")
+                log_read = False
             await asyncio.sleep(1)
     except Exception as e:
         logging.error(f"Error in monitor_log: {e}")
@@ -1189,13 +1254,6 @@ def start_monitoring(log_file_path):
     threading.Thread(target=monitor_loop.run_forever, daemon=True).start()
     print(f"Started monitoring log file: {log_file_path}")
 
-def file_in_use(src):
-    try:
-        os.rename(src, src)
-        return False
-    except OSError:    # file is in use
-        return True
-
 def stop_monitoring():
     """Request to stop the monitor_log task safely."""
     global request
@@ -1243,7 +1301,7 @@ def update_lists():
 async def speak_test_message():
     """Speak a test message."""
     test_message = "This is a Test message from the Second Life Chat to Speech program."
-    task0 = asyncio.create_task(speak_text(test_message, "en-US-EmmaMultilingualNeural", speakers, True))
+    task0 = asyncio.create_task(speak_text(test_message, "en-US-EmmaMultilingualNeural", speakers, timedelta(seconds=0), True))
     await task0
 
 if __name__ == "__main__":
@@ -1255,7 +1313,7 @@ if __name__ == "__main__":
     config.read('config.ini')
 
     # Parse configuration values
-    global Enable_Spelling_Check, IgnoreList, OBSChatFiltered, EdgeVoicem, SpeakOnlyList
+    global Enable_Spelling_Check, IgnoreList, OBSChatFiltered, EdgeVoicem, SpeakOnlyList#, speakers, replay_chat, follow_timestamps, record, verbose
     log_file_path = config.get('Settings', 'log_file_path')
     Enable_Spelling_Check = config.getboolean('Settings', 'enable_spelling_check')
     IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list', fallback='').split(',')]
@@ -1268,6 +1326,8 @@ if __name__ == "__main__":
     elif speakers > 12: speakers = 12
     replay_chat = config.getint('Settings', 'replay_chat', fallback=0)
     follow_timestamps = config.getint('Settings', 'follow_timestamps', fallback=1)
+    record = config.getint('Settings', 'record', fallback=0)
+    verbose = config.getint('Settings', 'verbose', fallback=0)
     # all_voices = asyncio.run(get_voices()) # Fetch all voices
 
     update_volume(config.getint('Settings', 'volume', fallback=75))
@@ -1314,7 +1374,7 @@ if __name__ == "__main__":
         """Toggle monitoring based on the button state."""
         global last_toggle_time
         current_time = time.time()
-        if current_time - last_toggle_time < 0.2:  # Check if 3 seconds have passed
+        if current_time - last_toggle_time < 0.2:  # Check if 0.2 seconds have passed
             return
 
         last_toggle_time = current_time
@@ -1322,6 +1382,19 @@ if __name__ == "__main__":
             start_monitoring_ui()
         else:
             stop_monitoring_ui()
+    
+    def toggle_recording():
+        """Toggle recording based on the button state."""
+        global record, stamp_read
+        if window.record_button.cget("text") == "Record Audio":
+            if name_recording():
+                window.record_button.configure(text = "Stop Recording", text_color="#ff8080")
+                stamp_read = False
+                record = 1
+        else:
+            record = 0
+            window.record_button.configure(text = "Record Audio", text_color="#d1d1d1")
+            print(f"Stopped recording to file: .\{recording}")
     
     # Start the server in the background
     run_server_in_background()
@@ -1334,11 +1407,13 @@ if __name__ == "__main__":
     window.save_config_button.configure(command=window.save_config)
     window.volume_slider.configure(command=lambda value: update_volume(float(value), window))
     window.characters_slider.configure(command=lambda value: update_minchar(int(value), window))
+    window.record_button.configure(command=toggle_recording)
     # audio_device_menu
     window.audio_device_menu.configure(command=lambda value: set_audio_device(value))
   
     # speak_text("Starting up! Monitoring log file...")
     window.test_button.configure(command=lambda: asyncio.run(speak_test_message()))    # Override the print function to append to window.text_display
+ 
     original_print = print  # Keep a reference to the original print function
     def custom_print(*args, **kwargs):
         message = " ".join(map(str, args))  # Combine all arguments into a single string
@@ -1354,8 +1429,11 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.0-beta.1, by Jara Lowell")
-
+    print("Second Life Chat log to Speech version 2.0.0-beta2, by Jara Lowell")
+    
+    if record == True:
+        toggle_recording()
+    
     # Start the window application event loop
     try:
         window.mainloop()
