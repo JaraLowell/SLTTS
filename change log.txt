@@ -1,0 +1,26 @@
+CHANGE LOG
+
+Main changes made in version 2.0.0-beta2
+
+Added the ability to record the chat which is spoken to an .mp3 file located in the same directory where SLTTS-OBS is located.
+
+New config settings added:
+record = 0 or 1 (sets default record mode on startup)
+verbose = 0 or 1 (toggles diagnostic code)
+
+If replay_chat is set to 1 in the config file and Record Audio is active the selected chat log will be converted to speech at high speed and recorded instantly without being spoken. Otherwise all chat will be spoken in real time after being converted to speech irrespective of whether it is being recorded or not.
+
+--Socrates Dionysus, 20 July 2026
+
+Main changes made in version 2.0.0-beta1
+
+Text to speech conversion is now carried it in multiple asynchronous threads to speed up conversion and reduce the delate between chat being spoken.
+
+Long paragraphs are broken up into two smaller segments by sentence boundaries and converted to speech simultaneously so that the first part is spoken while the second part is converting. There is no noticeable delay between each segment being spoken.
+
+New config settings added:
+concurrent_edge_tts_threads = 3 or values from 1 to 12
+replay_chat = 0 or 1 (allows playback of existing chat logs)
+follow_timestamps = 1 or 0 (setting to 1 will speak back the log while waiting the for interval between chats in the timestamps to expire)
+
+--Socrates Dionysus, 11 July 2026
