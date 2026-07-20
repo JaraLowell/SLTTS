@@ -38,6 +38,7 @@ class MainWindow(ctk.CTk):
         self.text_display.tag_config("R", foreground="#ff8080")
         self.text_display.tag_config("T", foreground="#a1a1a1")
         self.text_display.tag_config("B", foreground="#8080ff")
+        self.text_display.tag_config("G", foreground="#80ff80")
         self.main_frame.rowconfigure(0, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
 
@@ -135,6 +136,10 @@ class MainWindow(ctk.CTk):
         self.save_config_button = ctk.CTkButton(self.main_frame, text="Save Config", font=("Consolas", 14, "bold"), command=self.save_config, width=220, border_width=0, border_color="#888888")
         self.save_config_button.grid(row=8, column=0, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
 
+        # Record button
+        self.record_button = ctk.CTkButton(self.main_frame, text="Record Audio", font=("Consolas", 14, "bold"), command=self.record, width=220, border_width=0, border_color="#888888")
+        self.record_button.grid(row=8, column=1, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
+
     def toggle_spelling_check(self):
         current_value = self.global_config.getboolean('Settings', 'enable_spelling_check', fallback=True)
         new_value = not current_value
@@ -154,6 +159,9 @@ class MainWindow(ctk.CTk):
         elif 'TIMECODE! ' in message:
             message = message.replace("TIMECODE! ", "")
             self.text_display.insert("end", message + "\n", "B")
+        elif 'VERBOSE! ' in message:
+            message = message.replace("VERBOSE! ", "")
+            self.text_display.insert("end", message + "\n", "G")
         else:
             self.text_display.insert("end", message + "\n")
         self.text_display.configure(state="disabled")
