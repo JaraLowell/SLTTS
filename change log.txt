@@ -1,6 +1,19 @@
 CHANGE LOG
 
-Main changes made in version 2.0.0-beta2
+"""Main changes made in version 2.0.0-beta3"""
+
+Moved the record audio button to the a new row on the top button bar.
+
+Added a replay chat button to allow an existing chat log to be read aloud from start to finish.
+
+Added a quick play button to override waiting between timestamps in the chat log when replay chat is selected.
+
+Added a file selector dialogue to choose which chat log to read.
+
+--Socrates Dionysus, 27 July 2026
+
+
+"""Main changes made in version 2.0.0-beta2"""
 
 Added the ability to record the chat which is spoken to an .mp3 file located in the same directory where SLTTS-OBS is located.
 
@@ -12,7 +25,8 @@ If replay_chat is set to 1 in the config file and Record Audio is active the sel
 
 --Socrates Dionysus, 20 July 2026
 
-Main changes made in version 2.0.0-beta1
+
+"""Main changes made in version 2.0.0-beta1"""
 
 Text to speech conversion is now carried it in multiple asynchronous threads to speed up conversion and reduce the delate between chat being spoken.
 
