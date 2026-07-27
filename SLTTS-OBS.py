@@ -25,6 +25,7 @@ from SLTTSUI import MainWindow
 import threading
 import builtins
 import shutil
+from tkinter import filedialog
 
 import emoji
 """
@@ -674,7 +675,7 @@ def name_recording():
     dtmstr = f"{dtm}".replace(":","-")
     recording = f"Chat {dtmstr}.mp3"
     c = 1
-    while os. path.exists(recording) and c<1000:
+    while os.path.exists(recording) and c<1000:
         recording = f"Chat {dtmstr} ({c}).mp3"
         c = c + 1
     if c > 1000: 
@@ -715,6 +716,7 @@ async def monitor_log(log_file):
     start_time = datetime.now()
     stamp_read = False
     chat_delta = timedelta(seconds=0)
+    log_read = False
 
     # initiate playback counter and playback task lists for simultaneous tts encoders
     current_player = output_file_counter = 0
@@ -820,7 +822,7 @@ async def monitor_log(log_file):
                                             if not record and stamp_read and replay_chat:
                                                 # wait untill time difference reaches delta
                                                 print(f"TIMECODE! Waiting {time_delta.total_seconds()} seconds until {dtm + chat_delta} for next line.")
-                                                while (datetime.now() - start_time) < chat_delta:
+                                                while follow_timestamps and (datetime.now() - start_time) < chat_delta:
                                                     if request: # request made to stop monitoring
                                                         if await stopped_speaking(): 
                                                             return
@@ -1093,7 +1095,7 @@ async def monitor_log(log_file):
                                         if last_message != message and message:
                                             last_message = message
                                             print(f"{message}")
-                                            if not replay_chat or last_user is not "Narrator":
+                                            if not replay_chat or last_user != "Narrator":
                                                 await update_chat(message) # we do not want the user's name appearing in the OBS chat multiple times, formatted wrongly, if they are quoting multiple lines
                                             else: await update_chat(f"{last_user}:" + ' ' + message)
                                             parts = []
@@ -1241,12 +1243,15 @@ def run_server_in_background():
 
 def start_monitoring(log_file_path):
     """Start the monitor_log task."""
-    global monitor_task, monitor_loop
+    global monitor_task, monitor_loop, replay_chat
 
     if monitor_task is not None:
         logging.error("Log monitoring is already running.")
         return
 
+    if not replay_chat:
+        window.replay_button.configure(state="disabled")
+    
     monitor_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(monitor_loop)
 
@@ -1290,6 +1295,7 @@ def shut_down_monitoring():
     readloop = False
     request = 0
     thread = 0
+    window.replay_button.configure(state="normal")
     window.start_button.configure(text="Start Log Reading", text_color="#d1d1d1")
 
 def update_lists():
@@ -1395,7 +1401,43 @@ if __name__ == "__main__":
             record = 0
             window.record_button.configure(text = "Record Audio", text_color="#d1d1d1")
             print(f"Stopped recording to file: .\{recording}")
-    
+            
+    def toggle_replay():
+        """Toggle replay chat log based on the button state."""
+        global replay_chat, readloop, request
+        if window.replay_button.cget("text") == "Replay Chat":
+            print(f"Peplaying chat from start of Chat Log file.")
+            window.replay_button.configure(text = "Stop Replay", text_color="#ff8080")
+            window.quick_button.configure(state="normal")
+            replay_chat = 1
+        else:
+            if readloop and not request: stop_monitoring()
+            replay_chat = 0
+            window.replay_button.configure(text = "Replay Chat", text_color="#d1d1d1")
+            window.quick_button.configure(state="disabled")
+            print(f"Stopped replaying chat from Chat Log file.")
+ 
+    def open_file():
+        """Open SL Chat Log File"""
+        global log_file_path
+        position = log_file_path.rfind("\\")
+        new_log_file_path = filedialog.askopenfilename(initialdir = log_file_path[:position], title = "Select a File", filetypes = (("Text files", "*.txt*"), ("All files", "*.*")))
+        if new_log_file_path and new_log_file_path != log_file_path:
+            log_file_path = new_log_file_path
+            if readloop and not request: stop_monitoring()
+            window.log_file_path_input.delete("0", "end")
+            window.log_file_path_input.insert(0, log_file_path)
+
+    def toggle_quick_play():
+        """Toggle Quick Play"""
+        global follow_timestamps
+        if window.quick_button.cget("text") == "Set Quick Play":
+            window.quick_button.configure(text = "Set Normal Play", text_color="#ff8080")
+            follow_timestamps = 0
+        else:
+            follow_timestamps = 1
+            window.quick_button.configure(text = "Set Quick Play", text_color="#d1d1d1")
+ 
     # Start the server in the background
     run_server_in_background()
 
@@ -1408,6 +1450,9 @@ if __name__ == "__main__":
     window.volume_slider.configure(command=lambda value: update_volume(float(value), window))
     window.characters_slider.configure(command=lambda value: update_minchar(int(value), window))
     window.record_button.configure(command=toggle_recording)
+    window.replay_button.configure(command=toggle_replay)
+    window.open_button.configure(command=open_file)
+    window.quick_button.configure(command=toggle_quick_play)
     # audio_device_menu
     window.audio_device_menu.configure(command=lambda value: set_audio_device(value))
   
@@ -1429,10 +1474,16 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.0-beta2, by Jara Lowell")
+    print("Second Life Chat log to Speech version 2.0.0-beta3, by Jara Lowell")
     
     if record == True:
         toggle_recording()
+        
+    if replay_chat == True:
+        toggle_replay()
+        
+    if follow_timestamps == False:
+        toggle_quick_play()
     
     # Start the window application event loop
     try:
