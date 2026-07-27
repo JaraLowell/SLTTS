@@ -47,7 +47,7 @@ class MainWindow(ctk.CTk):
         self.button_frame.grid(row=1, column=0, columnspan=2, sticky="n", pady=(2, 12))
 
         # Status indicator (clock when busy, invisible when not)
-        self.status_indicator = ctk.CTkLabel(self.button_frame, text="  ", font=("Consolas", 20))
+        self.status_indicator = ctk.CTkLabel(self.button_frame, text=self.busy_chars[0], font=("Consolas", 20))
         self.status_indicator.grid(row=0, column=0, padx=5)
 
         self.start_button = ctk.CTkButton(self.button_frame, text="Start Log Reading", text_color="#d1d1d1", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
@@ -102,7 +102,7 @@ class MainWindow(ctk.CTk):
 
         self.log_file_path_input = ctk.CTkEntry(self.main_frame, border_width=0)
         self.log_file_path_input.insert(0, self.global_config.get('Settings', 'log_file_path', fallback=""))
-        self.log_file_path_input.grid(row=4, column=1, sticky="ew", pady=(0, 6))
+        self.log_file_path_input.grid(row=4, column=1, sticky="ew", pady=(6, 6))
 
         # Edge TTS Voice input
         self.edge_voice_label = ctk.CTkLabel(self.main_frame, text="Edge TTS Voice LLM (M,F):", font=("Consolas", 12, "bold"))
@@ -130,15 +130,27 @@ class MainWindow(ctk.CTk):
 
         # Update Ignore List button
         self.update_ignore_list_button = ctk.CTkButton(self.main_frame, text="Update Ignore List", font=("Consolas", 14, "bold"), command=self.update_ignore_list, width=220, border_width=0, border_color="#888888")
-        self.update_ignore_list_button.grid(row=8, column=0, columnspan=2, sticky="ne", pady=(2, 15), padx=(0, 3))
+        self.update_ignore_list_button.grid(row=8, column=1, columnspan=2, sticky="ne", pady=(2, 15), padx=(0, 3))
 
         # Save Config button
         self.save_config_button = ctk.CTkButton(self.main_frame, text="Save Config", font=("Consolas", 14, "bold"), command=self.save_config, width=220, border_width=0, border_color="#888888")
         self.save_config_button.grid(row=8, column=0, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
-
+        
         # Record button
-        self.record_button = ctk.CTkButton(self.main_frame, text="Record Audio", font=("Consolas", 14, "bold"), command=self.record, width=220, border_width=0, border_color="#888888")
-        self.record_button.grid(row=8, column=1, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
+        self.record_button = ctk.CTkButton(self.button_frame, text="Record Audio", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
+        self.record_button.grid(row=1, column=1, columnspan=1, sticky="nw", pady=(5, 0), padx=(5, 0))
+
+        # Replay button
+        self.replay_button = ctk.CTkButton(self.button_frame, text="Replay Chat", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
+        self.replay_button.grid(row=1, column=2, columnspan=1, sticky="nw", pady=(5, 0), padx=(5, 0))
+
+        # Quick play button
+        self.quick_button = ctk.CTkButton(self.button_frame, text="Set Quick Play", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888", state=ctk.DISABLED)
+        self.quick_button.grid(row=1, column=3, columnspan=1, sticky="nw", pady=(5, 0), padx=(5, 0))
+
+        # Open log file button
+        self.open_button = ctk.CTkButton(self.button_frame, text="Open File", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
+        self.open_button.grid(row=1, column=4, sticky="nw", pady=(5, 0), padx=(5, 0))
 
     def toggle_spelling_check(self):
         current_value = self.global_config.getboolean('Settings', 'enable_spelling_check', fallback=True)
@@ -203,7 +215,7 @@ class MainWindow(ctk.CTk):
         if self.busy_animation_id is not None:
             self.after_cancel(self.busy_animation_id)
             self.busy_animation_id = None
-        self.status_indicator.configure(text="  ")  # Hide status indicator
+        self.status_indicator.configure(text=self.busy_chars[0])  # Hide status indicator
 
     def update_busy_indicator(self):
         if self.is_busy:
