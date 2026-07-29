@@ -87,6 +87,19 @@ class MainWindow(ctk.CTk):
         self.volume_slider.set(int(self.global_config.get('Settings', 'volume', fallback=75)))
         self.volume_slider.grid(row=2, column=1, sticky="ew", pady=(6, 6))
 
+        # Chat position slider
+        log_file = self.global_config.get('Settings', 'log_file_path', fallback="")
+        if os.path.exists(log_file):
+            size = os.path.getsize(log_file)
+        else: size = 0
+
+        self.chat_position_label = ctk.CTkLabel(self.main_frame, text="Position in Chat Log File: 0.0%", font=("Consolas", 12, "bold"))
+        self.chat_position_label.grid(row=5, column=0, sticky="w")
+
+        self.chat_slider = ctk.CTkSlider(self.main_frame, from_=0, to=1000)
+        self.chat_slider.set(0)
+        self.chat_slider.grid(row=5, column=1, sticky="ew", pady=(6, 6))
+
         # Minimumm Characters to send to TTS
         tmpvalue = int(self.global_config.get('Settings', 'min_char', fallback=2))
         self.characters_label = ctk.CTkLabel(self.main_frame, text="Minimum Characters To Speak: " + str(tmpvalue), font=("Consolas", 12, "bold"))
@@ -106,35 +119,35 @@ class MainWindow(ctk.CTk):
 
         # Edge TTS Voice input
         self.edge_voice_label = ctk.CTkLabel(self.main_frame, text="Edge TTS Voice LLM (M,F):", font=("Consolas", 12, "bold"))
-        self.edge_voice_label.grid(row=5, column=0, sticky="w")
+        self.edge_voice_label.grid(row=6, column=0, sticky="w")
 
         self.edge_voice_input = ctk.CTkEntry(self.main_frame, border_width=0)
         self.edge_voice_input.insert(0, self.global_config.get('Settings', 'edge_tts_llm', fallback=""))
-        self.edge_voice_input.grid(row=5, column=1, sticky="ew", pady=(0, 6))
+        self.edge_voice_input.grid(row=6, column=1, sticky="ew", pady=(0, 6))
 
         # IgnoreList management
         self.ignore_list_label = ctk.CTkLabel(self.main_frame, text="Ignore Object, Avatar List\n(comma-separated):", font=("Consolas", 12, "bold"))
-        self.ignore_list_label.grid(row=6, column=0, sticky="nw")
+        self.ignore_list_label.grid(row=7, column=0, sticky="nw")
 
         self.ignore_list_input = ctk.CTkTextbox(self.main_frame, height=50, wrap="word")
         self.ignore_list_input.insert("1.0", self.global_config.get('Settings', 'ignore_list', fallback=""))
-        self.ignore_list_input.grid(row=6, column=1, sticky="ew", pady=(0, 6))
+        self.ignore_list_input.grid(row=7, column=1, sticky="ew", pady=(0, 6))
 
         # Names allowed to speak list management
         self.onlytalk_list_label = ctk.CTkLabel(self.main_frame, text="Only allowed to talk List\n(comma-separated):", font=("Consolas", 12, "bold"))
-        self.onlytalk_list_label.grid(row=7, column=0, sticky="nw")
+        self.onlytalk_list_label.grid(row=8, column=0, sticky="nw")
 
         self.onlytalk_list_input = ctk.CTkTextbox(self.main_frame, height=50, wrap="word")
         self.onlytalk_list_input.insert("1.0", self.global_config.get('Settings', 'speak_only_list', fallback=""))
-        self.onlytalk_list_input.grid(row=7, column=1, sticky="ew", pady=(0, 6))
+        self.onlytalk_list_input.grid(row=8, column=1, sticky="ew", pady=(0, 6))
 
         # Update Ignore List button
         self.update_ignore_list_button = ctk.CTkButton(self.main_frame, text="Update Ignore List", font=("Consolas", 14, "bold"), command=self.update_ignore_list, width=220, border_width=0, border_color="#888888")
-        self.update_ignore_list_button.grid(row=8, column=1, columnspan=2, sticky="ne", pady=(2, 15), padx=(0, 3))
+        self.update_ignore_list_button.grid(row=9, column=1, columnspan=2, sticky="ne", pady=(2, 15), padx=(0, 3))
 
         # Save Config button
         self.save_config_button = ctk.CTkButton(self.main_frame, text="Save Config", font=("Consolas", 14, "bold"), command=self.save_config, width=220, border_width=0, border_color="#888888")
-        self.save_config_button.grid(row=8, column=0, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
+        self.save_config_button.grid(row=9, column=0, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
         
         # Record button
         self.record_button = ctk.CTkButton(self.button_frame, text="Record Audio", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
