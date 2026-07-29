@@ -150,7 +150,7 @@ def spell_check_message(message):
                if temp_len > 3:
                    word = ''
                else:
-                   temp = re.sub(r'[+=*./\-?!"\':;,()$£€¥]{1,}', '', temp) # These characters can be spoken or emoted in English so should not be counted as spam
+                   temp = re.sub(r'[+=*./\-?!&"\':;,()%$£€¥]{1,}', '', temp) # These characters can be spoken or emoted in English so should not be counted as spam
                    if temp_len == len(temp):
                         word = ''
             elif clean_name(re.sub(r'[^\d\p{L}\p{M}]', '', word)) == False: # If word contains characters in more than one language regard it as spam 
@@ -241,8 +241,8 @@ def spell_check_message(message):
             print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
             return ""
         elif (ratio < 0.80): # Message might still contain spam so try to clean it
-            print(f"IGNORED! Message '{message}' may have been cleaned of suspected gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
-            message = re.sub(r'[^\d\p{L}\p{M}\s,.;:\'"?!/\-+*=()£$€¥%]', ' ', message).strip() # Remove all but letters, digits, and basic punctuation
+            if verbose: print(f"IGNORED! Message '{message}' may have been cleaned of suspected gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
+            message = re.sub(r'[^\d\p{L}\p{M}\s,.;:\'"?!&^/\-+*=()%$£€¥]', ' ', message) # Remove all but letters, digits, and basic punctuation
             message = re.sub(r'\s+', ' ', message).strip() # Clean out excess white space the might have been added
 
     return message
@@ -697,10 +697,13 @@ async def stopped_speaking():
     thread = 1
     return thread
 
+line_changed = False
+
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
     global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char, name2voice, last_voice, SpeakOnlyList, slang_replacements, window
-    global current_player, output_file_counter, speaker_active, speakers, request, thread, recording, record, stamp_read
+    global current_player, output_file_counter, speaker_active, speakers, request, thread, recording, record, stamp_read, replay_chat
+    global file_position, line_changed
     # await speak_text("Starting up! Monitoring log file...", "en-US-EmmaMultilingualNeural", speakers, True)
     thread = 0
     request = 0
@@ -762,15 +765,27 @@ async def monitor_log(log_file):
                     with open(log_file, 'r', encoding='utf-8') as file:
                         file.seek(last_position)  # Seek to the last known position
                         new_lines = file.readlines()
-                        if len(new_lines) > 50000 and not iswarned:
+                        len_lines = len(new_lines)
+                        if len_lines > 50000 and not iswarned:
                             print("Warning: Log file is over 50,000 lines. This may cause performance issues.")
                             logging.warning("Log file is over 50,000 lines. This may cause performance issues.")
                             iswarned = True
                             await asyncio.sleep(0.3)
                         last_position = file.tell()  # Update the last position after reading
-                        if replay_chat and len(new_lines):
+                        if replay_chat and len_lines:
                             log_read = True
-                        for line in new_lines:
+                        line_number = 0
+                        #for line in new_lines:
+                        while line_number < len_lines:
+                            if replay_chat:
+                                if line_changed:
+                                    line_changed = False
+                                    line_number = int(file_position * len_lines)
+                                posn = int(1000 * (1 + line_number)/len_lines)
+                                window.chat_position_label.configure(text=f"Position in Chat Log File: {round(posn/10, 1)}%")
+                                window.chat_slider.set(posn)
+                            line = new_lines[line_number]
+                            line_number = line_number + 1
                             if request: # request made to stop monitoring
                                 if await stopped_speaking(): 
                                     return
@@ -1153,6 +1168,12 @@ async def monitor_log(log_file):
                     logging.error(f"Error reading log file Unexpected error: {e}")
             if replay_chat and log_read:
                 print("There are no more lines to speak. Stop log reading or add new lines to the chat log to be spoken.")
+                window.chat_slider.configure(state="disabled")
+                window.replay_button.configure(state="disabled")
+                window.replay_button.configure(text = "Replay Chat", text_color="#d1d1d1")
+                window.quick_button.configure(state="disabled")
+                replay_chat = False
+                #toggle_replay()
                 log_read = False
             await asyncio.sleep(1)
     except Exception as e:
@@ -1160,6 +1181,8 @@ async def monitor_log(log_file):
         print(f"Error while monitoring log file: {e}")
     finally:
         print("Stopped monitoring log file.")
+        window.chat_position_label.configure(text=f"Position in Chat Log File: 0.0%")
+        window.chat_slider.set(0)
         shut_down_monitoring()
 
 def update_global(variable_name, value):
@@ -1202,6 +1225,15 @@ def update_volume(value, window=None):
     pygame.mixer.music.set_volume(play_volume)
     if window:
         window.volume_label.configure(text=f"Output volume: {int(value)}")
+
+file_position = 0
+
+def update_position(value, window=None):
+    """Update the file position setting."""
+    global file_position
+    if window:
+        file_position = value/1000
+        window.chat_position_label.configure(text=f"Position in Chat Log File: {round(file_position*100, 1)}%")
 
 # Add this method to the MainWindow class
 def set_audio_device(selected_device):
@@ -1251,6 +1283,9 @@ def start_monitoring(log_file_path):
 
     if not replay_chat:
         window.replay_button.configure(state="disabled")
+        window.chat_slider.configure(state="disabled")
+        window.chat_slider.set(1000)
+        window.chat_position_label.configure(text=f"Position in Chat Log File: 100.0%")
     
     monitor_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(monitor_loop)
@@ -1296,6 +1331,7 @@ def shut_down_monitoring():
     request = 0
     thread = 0
     window.replay_button.configure(state="normal")
+    #window.chat_slider.configure(state="normal")
     window.start_button.configure(text="Start Log Reading", text_color="#d1d1d1")
 
 def update_lists():
@@ -1409,12 +1445,15 @@ if __name__ == "__main__":
             print(f"Peplaying chat from start of Chat Log file.")
             window.replay_button.configure(text = "Stop Replay", text_color="#ff8080")
             window.quick_button.configure(state="normal")
+            window.chat_slider.configure(state="normal")
             replay_chat = 1
         else:
-            if readloop and not request: stop_monitoring()
+            if readloop and not request: 
+                stop_monitoring()
             replay_chat = 0
             window.replay_button.configure(text = "Replay Chat", text_color="#d1d1d1")
             window.quick_button.configure(state="disabled")
+            window.chat_slider.configure(state="disabled")
             print(f"Stopped replaying chat from Chat Log file.")
  
     def open_file():
@@ -1438,6 +1477,12 @@ if __name__ == "__main__":
             follow_timestamps = 1
             window.quick_button.configure(text = "Set Quick Play", text_color="#d1d1d1")
  
+    def on_release(value):
+        global file_position, line_changed
+        if replay_chat:
+            line_changed = True
+            window.chat_position_label.configure(text=f"Position in Chat Log File: {round(file_position*100, 1)}%")
+ 
     # Start the server in the background
     run_server_in_background()
 
@@ -1448,6 +1493,8 @@ if __name__ == "__main__":
     window.update_ignore_list_button.configure(command=lambda: update_lists())
     window.save_config_button.configure(command=window.save_config)
     window.volume_slider.configure(command=lambda value: update_volume(float(value), window))
+    window.chat_slider.configure(command=lambda value: update_position(float(value), window))
+    window.chat_slider.bind("<ButtonRelease-1>", command=on_release)
     window.characters_slider.configure(command=lambda value: update_minchar(int(value), window))
     window.record_button.configure(command=toggle_recording)
     window.replay_button.configure(command=toggle_replay)
@@ -1474,13 +1521,15 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.0-beta3, by Jara Lowell")
+    print("Second Life Chat log to Speech version 2.0.1, by Jara Lowell")
     
     if record == True:
         toggle_recording()
         
     if replay_chat == True:
         toggle_replay()
+    else:
+        window.chat_slider.configure(state="disabled")
         
     if follow_timestamps == False:
         toggle_quick_play()
