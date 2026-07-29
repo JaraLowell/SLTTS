@@ -1,5 +1,16 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.1"""
+
+Added a slider to allow the rough selection of lines of chat to be played back from a chat log and to show progress when Replay Chat is set.
+
+When a chat log has finished being replayed the programme will automatically switch to normal chat log reading mode.
+
+Minor fix to the spam filters to allow isolated '&' and '%' symbols to be spoken.
+
+--Socrates Dionysus, 27 July 2026
+
+
 """Main changes made in version 2.0.0-beta3"""
 
 Moved the record audio button to the a new row on the top button bar.
