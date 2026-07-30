@@ -1,5 +1,20 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.2"""
+
+Bug fix: The name of the audio recording file could change while recording if Record Audio is stopped and restarted while text is being spoken asynchronously. The file name variable has therefore now been isolated in each thread so that if the file name changes globally recording will still continue using the old file name until the file is closed and the updated file name filters through.
+
+Added a setting to the config file to allow a directory to store tts audio recordings in to be chosen.
+
+record_directory = Recordings
+
+The file path can either be global or relative to the directory that SLTTS-OBS is running from.
+
+A GUI method to choose the record directory may be added in a later version.
+
+--Socrates Dionysus, 1 August 2026
+
+
 """Main changes made in version 2.0.1"""
 
 Added a slider to allow the rough selection of lines of chat to be played back from a chat log and to show progress when Replay Chat is set.
@@ -8,7 +23,7 @@ When a chat log has finished being replayed the programme will automatically swi
 
 Minor fix to the spam filters to allow isolated '&' and '%' symbols to be spoken.
 
---Socrates Dionysus, 27 July 2026
+--Socrates Dionysus, 29 July 2026
 
 
 """Main changes made in version 2.0.0-beta3"""
