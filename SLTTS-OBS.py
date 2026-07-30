@@ -395,10 +395,11 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             if not test_msg:
                 # Record audio output
                 if record:
+                    local_rec = recording # we do not want file name changing in middle of recording so make it local
                     if follow_timestamps and os.path.exists('silence.mp3'):
                         # add silence to fill time elapsed between sgements of spoken text
-                        if os.path.exists(recording):
-                            size = os.path.getsize(recording)
+                        if os.path.exists(local_rec):
+                            size = os.path.getsize(local_rec)
                         else: size = 0
                         duration = round(size/144 * 0.024,3) # total duration of mp3 recording so far, rounded to correct maths errors since the result can only contain 3 decimel figures
                         if verbose: print(f"VERBOSE! Duration of recording {duration}s, File size {size} bytes, Total time elapsed {chat_delta}")
@@ -408,20 +409,23 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                             minutes = int(padding / 60)
                             padding = padding%60
                             for i in range(minutes): 
-                                with open('silence.mp3', 'rb') as f2, open(recording, 'ab') as f1:
+                                with open('silence.mp3', 'rb') as f2, open(local_rec, 'ab') as f1:
                                     shutil.copyfileobj(f2, f1)
+                            f1.close()
+                            f2.close()
                         if padding > 0:                 
                             with open("silence.mp3", 'rb') as file1:
                                 silence = file1.read()
+                            file1.close()
                             frames = int(padding/0.024 + 0.5) # number of frames needed where each frame is 0.024s
                             bytes2write = int(frames * 144) # number of bytes used by these frames
                             if verbose: print(f"VERBOSE! Bytes needed {bytes2write}")
                             f2 = silence[:bytes2write]
-                            fileout = open(recording, 'ab')
+                            fileout = open(local_rec, 'ab')
                             fileout.write(f2)
-                            fileout.close()                  
+                            fileout.close()             
                     # append mp3 tts file to recording
-                    with open(output_file, 'rb') as f2, open(recording, 'ab') as f1:
+                    with open(output_file, 'rb') as f2, open(local_rec, 'ab') as f1:
                         shutil.copyfileobj(f2, f1)
                         f1.close()
                         f2.close()
@@ -664,24 +668,39 @@ follow_timestamps = True
 record = False
 stamp_read = False
 
+record_directory = "Recordings"
+
 def name_recording():
-    global recording
+    global recording, record_directory
     # generate unique name for audio recording file
+    if record_directory[-1] != "\\":
+        record_directory = record_directory + "\\"
     dtm = datetime.now()
     if dtm.microsecond >= 500000:
         dtm = dtm + timedelta(seconds=1)
         dtm = dtm.replace(microsecond=0)
     else: dtm = dtm.replace(microsecond=0)
     dtmstr = f"{dtm}".replace(":","-")
-    recording = f"Chat {dtmstr}.mp3"
+    tmp_recording = f"{record_directory}Chat {dtmstr}.mp3"
     c = 1
-    while os.path.exists(recording) and c<1000:
-        recording = f"Chat {dtmstr} ({c}).mp3"
+    while os.path.exists(tmp_recording) and c<1000:
+        tmp_recording = f"{record_directory}Chat {dtmstr} ({c}).mp3"
         c = c + 1
     if c > 1000: 
-        print(f"WARNING! {recording} already exists.")
+        print(f"WARNING! {tmp_recording} already exists.")
         return False
-    print(f"Audio will be recorded to .\{recording} while reading chat log.")
+    try:
+        with open(tmp_recording, 'wb') as file_r:
+            file_r.close()
+    except Exception as e:
+        logging.error(f"Error creating recording file: {e}")
+        print(f"WARNING! {tmp_recording} cannot be created.")
+        return False
+    if record_directory == "":
+        prefix = ".\\"
+    else: prefix = ""
+    recording = tmp_recording
+    print(f"Audio will be recorded to {prefix}{recording} while reading chat log.")
     return True
  
 async def stopped_speaking():
@@ -1370,6 +1389,7 @@ if __name__ == "__main__":
     follow_timestamps = config.getint('Settings', 'follow_timestamps', fallback=1)
     record = config.getint('Settings', 'record', fallback=0)
     verbose = config.getint('Settings', 'verbose', fallback=0)
+    record_directory = config.get('Settings', 'record_directory', fallback='Recordings')
     # all_voices = asyncio.run(get_voices()) # Fetch all voices
 
     update_volume(config.getint('Settings', 'volume', fallback=75))
@@ -1436,7 +1456,7 @@ if __name__ == "__main__":
         else:
             record = 0
             window.record_button.configure(text = "Record Audio", text_color="#d1d1d1")
-            print(f"Stopped recording to file: .\{recording}")
+            print(f"Stopped recording to file: {recording}")
             
     def toggle_replay():
         """Toggle replay chat log based on the button state."""
@@ -1521,7 +1541,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.1, by Jara Lowell")
+    print("Second Life Chat log to Speech version 2.0.2, by Jara Lowell")
     
     if record == True:
         toggle_recording()
