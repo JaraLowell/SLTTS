@@ -12,7 +12,7 @@ The file path can either be global or relative to the directory that SLTTS-OBS i
 
 A GUI method to choose the record directory may be added in a later version.
 
---Socrates Dionysus, 1 August 2026
+--Socrates Dionysus, 31 July 2026
 
 
 """Main changes made in version 2.0.1"""
