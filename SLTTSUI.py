@@ -48,7 +48,7 @@ class MainWindow(ctk.CTk):
 
         # Status indicator (clock when busy, invisible when not)
         self.status_indicator = ctk.CTkLabel(self.button_frame, text=self.busy_chars[0], font=("Consolas", 20))
-        self.status_indicator.grid(row=0, column=0, padx=5)
+        self.status_indicator.grid(row=0, column=0,  padx=(5,0))
 
         self.start_button = ctk.CTkButton(self.button_frame, text="Start Log Reading", text_color="#d1d1d1", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
         self.start_button.grid(row=0, column=1, padx=5)
@@ -164,6 +164,10 @@ class MainWindow(ctk.CTk):
         # Open log file button
         self.open_button = ctk.CTkButton(self.button_frame, text="Open File", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
         self.open_button.grid(row=1, column=4, sticky="nw", pady=(5, 0), padx=(5, 0))
+        
+        # Pause button
+        self.pause_button = ctk.CTkButton(self.button_frame, text="\u23f8", font=("Consolas", 14, "bold"), width=20, border_width=0, border_color="#888888")
+        self.pause_button.grid(row=1, column=0, columnspan=1, sticky="nw", pady=(5, 0), padx=(5,0))
 
     def toggle_spelling_check(self):
         current_value = self.global_config.getboolean('Settings', 'enable_spelling_check', fallback=True)
