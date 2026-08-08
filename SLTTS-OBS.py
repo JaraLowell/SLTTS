@@ -899,7 +899,7 @@ async def monitor_log(log_file):
                                             if not record and replay_chat:
                                                 # wait untill time difference reaches delta
                                                 print(f"TIMECODE! Waiting {time_delta.total_seconds()} seconds until {st_rounded + chat_wait} for next line.")
-                                                print(f"VERBOSE! Start time {st_rounded}, Initial stamp {initial_stamp}.")
+                                                if verbose: print(f"VERBOSE! Start time {st_rounded}, Initial stamp {initial_stamp}.")
                                                 while follow_timestamps and (datetime.now() - st_rounded) < chat_wait:
                                                     if request: # request made to stop monitoring
                                                         if await stopped_speaking(): 
