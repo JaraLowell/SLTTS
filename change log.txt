@@ -1,5 +1,26 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.3"""
+
+Corrected spelling error "Peplaying" to "Replaying".
+
+Added custom_reader setting. The default state is custom_reader = 0 which will only read SL timestamps.
+
+Added an experimental custom timestamp format for defining a delay between when one paragraph ends and the next is read aloud. This is useful for adding timed narration to videos or using SLTTS as a general text reader where a predefined pause is required between paragraphs, chapters of a book, bullet points, news, or description.
+
+[hh:mm:ss.sss]
+
+Example: [00:00:01.100] followed by the contents of the paragraph to be spoken after the predefined duration or by a new line. The resolution is to 0.1s while reading live and to 0.024s when recording.
+
+Future integration with chat clients other than SL is under development.
+
+Added a pause button and the ability to pause and resume reading chat logs. This is useful if you don’t want to miss any conversation or roleplay while afk or while working.
+
+After log reading is unpaused each line of chat will be read in the order it was added to the chat log while paused, or while it catches up when being read, and will be spoken in time relative to the delay between the original timestamps until no more unspoken lines are left in the chat log, after which normal log reading will resume. If Quick Play is selected then the SL timestamps will be ignored and each line will be spoken without delay until log reading catches up with the chat being added to the log.
+
+--Socrates Dionysus, 8 August 2026
+
+
 """Main changes made in version 2.0.2"""
 
 Bug fix: The name of the audio recording file could change while recording if Record Audio is stopped and restarted while text is being spoken asynchronously. The file name variable has therefore now been isolated in each thread so that if the file name changes globally recording will still continue using the old file name until the file is closed and the updated file name filters through.
