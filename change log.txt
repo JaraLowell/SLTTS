@@ -24,3 +24,11 @@ replay_chat = 0 or 1 (allows playback of existing chat logs)
 follow_timestamps = 1 or 0 (setting to 1 will speak back the log while waiting the for interval between chats in the timestamps to expire)
 
 --Socrates Dionysus, 11 July 2026
+
+Recent updates made in August 2026
+
+Configuration handling was improved so the UI now reads existing values from config.ini first and only writes updated values when they are provided, while still filling in missing options with sensible defaults. This means new or previously added settings are preserved and can be changed through Save Config without being lost.
+
+The legacy entry-point scripts SLTTS.py and SLTTSUI-OLD.py were removed from the active workflow. The OBS-based app now uses SLTTS-OBS.py as the main launcher, with the modern interface handled by SLTTSUI.py.
+
+--Socrates Dionysus, 11 August 2026
