@@ -1434,7 +1434,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.0-beta2, by Jara Lowell")
+    print("Second Life Chat log to Speech version 2.0.0-beta3, by Jara Lowell")
     
     if record == True:
         toggle_recording()
