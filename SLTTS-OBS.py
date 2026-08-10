@@ -433,10 +433,12 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                 await asyncio.sleep(0.25)
             return
 
-        # Wait for playback to finish
-        while pygame.mixer.music.get_busy():
-            #pygame.time.Clock().tick(10) # Not thread safe so use sleep instead
+        # Wait for playback to finish with timeout
+        timeout = 60  # maximum wait time in seconds
+        elapsed = 0
+        while pygame.mixer.music.get_busy() and elapsed < timeout:
             await asyncio.sleep(0.1)
+            elapsed += 0.1
 
     finally:
         # Clean up and reset the flag
