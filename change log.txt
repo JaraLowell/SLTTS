@@ -1,5 +1,18 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.5"""
+
+Merged the main branch with the dev branch. The main branch is now ahead of dev.
+
+Saving config now allows the new settings that have been added to be saved.
+
+There are multiple timestamp formats the SL chat log can use so each is now parsed.
+
+Added a timeout so that if playback stops responding the player being used will stop after 4 minutes.
+
+--Jara Lowell, Socrates Dionysus, 11 August 2026
+
+
 """Main changes made in version 2.0.4"""
 
 Highlighted operational notices posted to the chat window in amber.
