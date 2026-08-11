@@ -6,6 +6,26 @@ from tkinter import messagebox
 from configparser import ConfigParser
 from pygame._sdl2 import get_audio_device_names
 
+def merge_config_settings(config, current_values, default_values=None):
+    """Merge current UI values into the config while preserving existing values."""
+    default_values = default_values or {}
+
+    if not config.has_section('Settings'):
+        config.add_section('Settings')
+
+    for key, value in default_values.items():
+        if not config.has_option('Settings', key):
+            config.set('Settings', key, str(value))
+
+    for key, value in current_values.items():
+        if value is None:
+            continue
+        if value == '':
+            continue
+        config.set('Settings', key, str(value))
+
+    return config
+
 class MainWindow(ctk.CTk):
     def __init__(self, global_config):
         super().__init__()
@@ -210,13 +230,35 @@ class MainWindow(ctk.CTk):
         self.global_config.set('Settings', 'speak_only_list', input_text)
 
     def save_config(self):
-        self.global_config.set('Settings', 'log_file_path', self.log_file_path_input.get())
-        self.global_config.set('Settings', 'edge_tts_llm', self.edge_voice_input.get())
-        self.global_config.set('Settings', 'window_geometry', self.geometry())
-        self.global_config.set('Settings', 'volume', str(int(self.volume_slider.get())))
-        self.global_config.set('Settings', 'ignore_list', self.ignore_list_input.get("1.0", "end-1c").strip().lower())
-        self.global_config.set('Settings', 'speak_only_list', self.onlytalk_list_input.get("1.0", "end-1c").strip().lower())
-        self.global_config.set('Settings', 'min_char', str(int(self.characters_slider.get())))
+        defaults = {
+            'log_file_path': '',
+            'enable_spelling_check': 'False',
+            'ignore_list': '',
+            'obs_chat_filtered': 'True',
+            'edge_tts_llm': 'en-US-EmmaMultilingualNeural',
+            'volume': '75',
+            'window_geometry': '1024x768',
+            'min_char': '2',
+            'speak_only_list': '',
+            'concurrent_edge_tts_threads': '3',
+            'replay_chat': '0',
+            'follow_timestamps': '1',
+            'record': '0',
+            'verbose': '0',
+        }
+        current_values = {
+            'log_file_path': self.log_file_path_input.get(),
+            'edge_tts_llm': self.edge_voice_input.get(),
+            'window_geometry': self.geometry(),
+            'volume': str(int(self.volume_slider.get())),
+            'ignore_list': self.ignore_list_input.get("1.0", "end-1c").strip().lower(),
+            'speak_only_list': self.onlytalk_list_input.get("1.0", "end-1c").strip().lower(),
+            'min_char': str(int(self.characters_slider.get())),
+            'obs_chat_filtered': str(self.global_config.getboolean('Settings', 'obs_chat_filtered', fallback=True)),
+            'enable_spelling_check': str(self.global_config.getboolean('Settings', 'enable_spelling_check', fallback=False)),
+        }
+        self.global_config = merge_config_settings(self.global_config, current_values, defaults)
+        
         with open("config.ini", 'w') as config_file:
             self.global_config.write(config_file)
         self.update_display("Configuration saved.")
