@@ -314,7 +314,7 @@ class MainWindow(ctk.CTk):
             return []
 
         try:
-            with open(self.name2voice_file, "r", encoding="utf-8") as file:
+            with open(self.name2voice_file, "r", encoding="utf-8-sig") as file:
                 data = json.load(file)
         except json.JSONDecodeError as e:
             messagebox.showerror("Invalid JSON", f"Cannot read {self.name2voice_file}:\n{e}")
@@ -381,7 +381,7 @@ class MainWindow(ctk.CTk):
                 messagebox.showwarning("Missing Value", "Each row must include both a name and a voice.")
                 return
 
-            key = name.lower()
+            key = name.casefold()
             if key in seen_names:
                 messagebox.showwarning("Duplicate Name", f"Duplicate name found: {name}")
                 return
@@ -469,7 +469,7 @@ class MainWindow(ctk.CTk):
             return []
 
         try:
-            with open(self.slang_file, "r", encoding="utf-8") as file:
+            with open(self.slang_file, "r", encoding="utf-8-sig") as file:
                 data = json.load(file)
         except json.JSONDecodeError as e:
             messagebox.showerror("Invalid JSON", f"Cannot read {self.slang_file}:\n{e}")
@@ -536,7 +536,7 @@ class MainWindow(ctk.CTk):
                 messagebox.showwarning("Missing Value", "Each row must include both a word and its replacement.")
                 return
 
-            key = word.lower()
+            key = word.casefold()
             if key in seen_words:
                 messagebox.showwarning("Duplicate Word", f"Duplicate word found: {word}")
                 return

@@ -62,6 +62,59 @@ readloop = False
 play_volume = 0.75  # Default volume
 min_char = 2  # Default minimum characters
 verbose = 0
+slang_patterns = []
+slang_exact_lookup = {}
+name2voice_lookup = {}
+
+def normalize_text(value):
+    """Normalize text for consistent Unicode handling across files and runtime input."""
+    if value is None:
+        return ""
+    return unicodedata.normalize("NFC", str(value)).strip()
+
+def normalize_lookup_key(value):
+    """Normalize and case-fold text for robust dictionary lookups."""
+    return normalize_text(value).casefold()
+
+def build_slang_matchers(mapping):
+    """Compile replacement patterns that support words, symbols, and emoji safely."""
+    patterns = []
+    exact_lookup = {}
+
+    for raw_slang, raw_replacement in mapping.items():
+        slang = normalize_text(raw_slang)
+        replacement = normalize_text(raw_replacement)
+        if not slang:
+            continue
+
+        escaped = re.escape(slang)
+        if re.fullmatch(r"\w+", slang):
+            # Word-like tokens should not match inside larger words.
+            pattern = re.compile(rf"(?<!\w){escaped}(?!\w)", flags=re.IGNORECASE)
+        else:
+            # Symbol/emoji patterns (for example "\\o/" or "🍎") cannot rely on word boundaries.
+            pattern = re.compile(escaped, flags=re.IGNORECASE)
+
+        patterns.append((pattern, replacement))
+        exact_lookup[normalize_lookup_key(slang)] = replacement
+
+    return patterns, exact_lookup
+
+def build_name2voice_lookup(mapping):
+    """Build normalized lookup for speaker-to-voice mapping."""
+    lookup = {}
+    for raw_name, raw_voice in mapping.items():
+        name = normalize_text(raw_name)
+        voice = normalize_text(raw_voice)
+        if not name or not voice:
+            continue
+        lookup[normalize_lookup_key(name)] = voice
+    return lookup
+
+def resolve_name2voice(speaker_part):
+    """Return mapped voice for speaker using normalized Unicode matching."""
+    key = normalize_lookup_key(speaker_part)
+    return name2voice_lookup.get(key)
 
 def ascii_name(name):
     # Remove all non-letter characters except spaces (\d\s- to allow hyphenated names and numbers)
@@ -164,7 +217,7 @@ def url2word(message):
     return message
 
 def spell_check_message(message):
-    global Enable_Spelling_Check, tool, slang_replacements
+    global Enable_Spelling_Check, tool, slang_patterns
     if not message:
         return ""  # Return empty string if message is empty
     elif len(message) == 1:
@@ -215,9 +268,9 @@ def spell_check_message(message):
     #message = re.sub(r'(?<=\w)-(?=\w)', '', message) # Hyphen is dropped in-between/inbetween words joining them together for correct grammar. 
     # Counter productive on some words and it conflicts with the replacement of abbreviations and slang in the next block of code
 
-    # Replace common abbreviations v3.2 slang replacements
-    for slang, replacement in slang_replacements.items():
-        message = re.sub(rf'\b{slang}\b', replacement, message, flags=re.IGNORECASE)
+    # Replace common abbreviations and symbol/emoji aliases.
+    for pattern, replacement in slang_patterns:
+        message = pattern.sub(replacement, message)
 
     # Perform spelling check if enabled
     if Enable_Spelling_Check:
@@ -979,9 +1032,8 @@ async def monitor_log(log_file):
                                         thisvoice = None
                                         gender = None
 
-                                        if name2voice:
-                                            if speaker_part in name2voice:
-                                                thisvoice = name2voice[speaker_part]
+                                        if name2voice_lookup:
+                                            thisvoice = resolve_name2voice(speaker_part)
 
                                         if IgnoreList and any(item.strip() for item in IgnoreList):
                                             for ignore_item in IgnoreList:
@@ -1056,8 +1108,9 @@ async def monitor_log(log_file):
                                             if first_name is not None: first_name = re.sub(r'^\d+(?=\D)|(?<=\D)\d+$', '', first_name)
 
                                             # Replace known display name/gibberish name with replacement name in slang replacements
-                                            if first_name in slang_replacements:
-                                                first_name = slang_replacements[first_name]
+                                            slang_first_name = slang_exact_lookup.get(normalize_lookup_key(first_name))
+                                            if slang_first_name:
+                                                first_name = slang_first_name
 
                                             logging.warning(f"Avatar Name: {speaker_part}, UniDecode: {tmp_speaker} Result Speaker: {first_name}")
 
@@ -1237,9 +1290,8 @@ async def monitor_log(log_file):
                                         if custom_reader and replay_chat and last_user is None:
                                             speaker_part = "Narrator"
                                             thisvoice = None
-                                            if name2voice:
-                                                if speaker_part in name2voice:
-                                                    thisvoice = name2voice[speaker_part]
+                                            if name2voice_lookup:
+                                                thisvoice = resolve_name2voice(speaker_part)
                                             if speaker_part in name_cache:
                                                 cached = name_cache[speaker_part]
                                                 if isinstance(cached, tuple) and len(cached) == 3:
@@ -1417,9 +1469,20 @@ def update_minchar(value, window=None):
 
 def load_slang_replacements(file_path):
     if file_path and os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, "r", encoding="utf-8-sig") as file:
             try:
-                return json.load(file)
+                data = json.load(file)
+                if not isinstance(data, dict):
+                    logging.error(f"Error: expected JSON object mapping in file: {file_path}")
+                    return {}
+
+                cleaned = {}
+                for key, value in data.items():
+                    norm_key = normalize_text(key)
+                    norm_value = normalize_text(value)
+                    if norm_key and norm_value:
+                        cleaned[norm_key] = norm_value
+                return cleaned
             except json.JSONDecodeError as e:
                 logging.error(f"Error: loading file: {e}")
                 return {}
@@ -1550,12 +1613,16 @@ if __name__ == "__main__":
     monitor_task = None
     monitor_loop = None
     slang_replacements = {}
+    slang_patterns = []
+    slang_exact_lookup = {}
     name2voice = {}
+    name2voice_lookup = {}
 
     def refresh_name2voice_mapping():
         """Reload name-to-voice mappings from disk so UI edits take effect immediately."""
-        global name2voice
+        global name2voice, name2voice_lookup
         name2voice = load_slang_replacements("name2voice.json")
+        name2voice_lookup = build_name2voice_lookup(name2voice)
         if name2voice:
             print(f"NOTICE! Name to voice file reading done, {len(name2voice)} replacements found and loaded.")
         else:
@@ -1563,8 +1630,9 @@ if __name__ == "__main__":
 
     def refresh_slang_mapping():
         """Reload slang replacement mappings from disk so UI edits take effect immediately."""
-        global slang_replacements
+        global slang_replacements, slang_patterns, slang_exact_lookup
         slang_replacements = load_slang_replacements("slangreplce.json")
+        slang_patterns, slang_exact_lookup = build_slang_matchers(slang_replacements)
         if slang_replacements:
             print(f"NOTICE! Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
         else:
