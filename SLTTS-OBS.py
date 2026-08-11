@@ -51,6 +51,7 @@ pygame.mixer.music.set_volume(0.75)  # Set volume to 50%
 is_playing = False
 request = 0 # speak_text is request 0, stop_monitoring is request 1
 thread = 1 # speak_text is thread 0, stop_monitoring is thread 1
+cached_timestamp_format = None
 last_message = None
 last_user = None
 last_voice = None
@@ -74,6 +75,41 @@ def ascii_name(name):
     # ascii_name(" * * さくら * * ")  > 'Sakura'
     # ascii_name("ms ʟᴀɪᴋᴇɴ")        > 'Ms Laiken'
     # ascii_name("Αλέξανδρος")       > 'Alexandros'
+
+def parse_chat_timestamp(value: str) -> datetime:
+    """Parse chat timestamps while caching the detected format for speed."""
+    global cached_timestamp_format
+
+    if not value:
+        raise ValueError("Timestamp value is empty")
+
+    normalized = value.strip()
+    normalized = normalized.replace("/", "-")
+
+    if cached_timestamp_format is not None:
+        try:
+            return datetime.strptime(normalized, cached_timestamp_format)
+        except ValueError:
+            cached_timestamp_format = None
+
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d %I:%M:%S %p",
+        "%Y-%m-%d %I:%M %p",
+        "%Y-%m-%d %I:%M:%S %p",
+        "%Y-%m-%d %I:%M %p",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+    ):
+        try:
+            parsed = datetime.strptime(normalized, fmt)
+            cached_timestamp_format = fmt
+            return parsed
+        except ValueError:
+            continue
+
+    raise ValueError(f"Unsupported timestamp format: {value}")
 
 def clean_name(name):
     # Lets check if only one language is used in the name
@@ -788,16 +824,11 @@ async def monitor_log(log_file):
                                         # Read chat log file from start to end
                                         if follow_timestamps and (replay_chat or record):
                                             # convert SL timestamp to a datetime object used by Python
-                                            date_time = timestamp.replace("/","-")
-                                            if len(date_time) is 19:
-                                                date_format = "%Y-%m-%d %H:%M:%S"
-                                            elif len(date_time) is 16:
-                                                date_format = "%Y-%m-%d %H:%M"
-                                                
                                             try:
-                                                new_stamp = datetime.strptime(date_time, date_format)
+                                                new_stamp = parse_chat_timestamp(timestamp)
                                             except Exception as e:
                                                 logging.error(f"Error reading date stamp: {e}")
+                                                continue
 
                                             if not stamp_read:
                                                 start_time = datetime.now()
