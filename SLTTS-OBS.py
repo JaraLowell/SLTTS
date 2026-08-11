@@ -899,7 +899,7 @@ async def monitor_log(log_file):
                                             await asyncio.sleep(1.00)
                                         stamp_read = False
                                         #log_read = False
-                                    if line.startswith("[") and line[11] == " " and (line[20] == "]" or line[17] == "]"):
+                                    if line.startswith("[") and line[11] == " " and (line[20] == "]" or line[17] == "]" or line[23] == "]"):
                                         isemote = False
                                         isrepat = False
                                         # Extract timestamp and message
