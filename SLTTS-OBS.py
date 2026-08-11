@@ -25,6 +25,7 @@ from SLTTSUI import MainWindow
 import threading
 import builtins
 import shutil
+from tkinter import filedialog
 
 import emoji
 """
@@ -51,7 +52,6 @@ pygame.mixer.music.set_volume(0.75)  # Set volume to 50%
 is_playing = False
 request = 0 # speak_text is request 0, stop_monitoring is request 1
 thread = 1 # speak_text is thread 0, stop_monitoring is thread 1
-cached_timestamp_format = None
 last_message = None
 last_user = None
 last_voice = None
@@ -75,41 +75,6 @@ def ascii_name(name):
     # ascii_name(" * * さくら * * ")  > 'Sakura'
     # ascii_name("ms ʟᴀɪᴋᴇɴ")        > 'Ms Laiken'
     # ascii_name("Αλέξανδρος")       > 'Alexandros'
-
-def parse_chat_timestamp(value: str) -> datetime:
-    """Parse chat timestamps while caching the detected format for speed."""
-    global cached_timestamp_format
-
-    if not value:
-        raise ValueError("Timestamp value is empty")
-
-    normalized = value.strip()
-    normalized = normalized.replace("/", "-")
-
-    if cached_timestamp_format is not None:
-        try:
-            return datetime.strptime(normalized, cached_timestamp_format)
-        except ValueError:
-            cached_timestamp_format = None
-
-    for fmt in (
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%d %H:%M",
-        "%Y-%m-%d %I:%M:%S %p",
-        "%Y-%m-%d %I:%M %p",
-        "%Y-%m-%d %I:%M:%S %p",
-        "%Y-%m-%d %I:%M %p",
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%d %H:%M",
-    ):
-        try:
-            parsed = datetime.strptime(normalized, fmt)
-            cached_timestamp_format = fmt
-            return parsed
-        except ValueError:
-            continue
-
-    raise ValueError(f"Unsupported timestamp format: {value}")
 
 def clean_name(name):
     # Lets check if only one language is used in the name
@@ -185,7 +150,7 @@ def spell_check_message(message):
                if temp_len > 3:
                    word = ''
                else:
-                   temp = re.sub(r'[+=*./\-?!"\':;,()$£€¥]{1,}', '', temp) # These characters can be spoken or emoted in English so should not be counted as spam
+                   temp = re.sub(r'[+=*./\-?!&"\':;,()%$£€¥]{1,}', '', temp) # These characters can be spoken or emoted in English so should not be counted as spam
                    if temp_len == len(temp):
                         word = ''
             elif clean_name(re.sub(r'[^\d\p{L}\p{M}]', '', word)) == False: # If word contains characters in more than one language regard it as spam 
@@ -276,8 +241,8 @@ def spell_check_message(message):
             print(f"IGNORED! Message '{message}' is considered gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
             return ""
         elif (ratio < 0.80): # Message might still contain spam so try to clean it
-            print(f"IGNORED! Message '{message}' may have been cleaned of suspected gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
-            message = re.sub(r'[^\d\p{L}\p{M}\s,.;:\'"?!/\-+*=()£$€¥%]', ' ', message).strip() # Remove all but letters, digits, and basic punctuation
+            if verbose: print(f"IGNORED! Message '{message}' may have been cleaned of suspected gibberish/ascii art. Ratio: {ratio:.2f}, Length: {len(message)}")
+            message = re.sub(r'[^\d\p{L}\p{M}\s,.;:\'"?!&^/\-+*=()%$£€¥]', ' ', message) # Remove all but letters, digits, and basic punctuation
             message = re.sub(r'\s+', ' ', message).strip() # Clean out excess white space the might have been added
 
     return message
@@ -375,16 +340,17 @@ current_player = 0
 speaker_active = []
 speakers = 3
 recording = ""
+max_silence = 3600
 
-async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), test_msg = False):
+async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), time_delta = timedelta(seconds=0), paragraph = True, test_msg = False):
     """Use Edge TTS to speak the given text."""
-    global EdgeVoice, window, current_player, speaker_active, speakers, recording, follow_timestamps, record, replay_chat, verbose
+    global EdgeVoice, window, current_player, speaker_active, speakers, follow_timestamps, record, replay_chat, verbose
     
     if VoiceOverride is not None:
         EdgeVoice = VoiceOverride
 
     if not is_valid_voice_format(EdgeVoice):
-        print(f"Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
+        print(f"NOTICE! Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
         logging.error(f"Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
         EdgeVoice = "en-US-EmmaMultilingualNeural"
 
@@ -417,51 +383,65 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                 speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
             return
 
-        # Wait to play output file in the right order
+        # Wait to play or record output file in the right order over multiple threads
         if not test_msg:
             while local_file_counter != globals()["current_player"]:
                 await asyncio.sleep(0.25)
 
         # Play the audio file
         if os.path.exists(output_file):
-            if not replay_chat or not record:
+            if not replay_chat or not record: # record but don't read text aloud for speed
                 pygame.mixer.music.load(output_file)
                 pygame.mixer.music.play()
             if not test_msg:
                 # Record audio output
                 if record:
+                    global recording
+                    local_rec = recording # we do not want file name changing in middle of recording so make it local
                     if follow_timestamps and os.path.exists('silence.mp3'):
                         # add silence to fill time elapsed between sgements of spoken text
-                        if os.path.exists(recording):
-                            size = os.path.getsize(recording)
+                        if os.path.exists(local_rec):
+                            size = os.path.getsize(local_rec)
                         else: size = 0
                         duration = round(size/144 * 0.024,3) # total duration of mp3 recording so far, rounded to correct maths errors since the result can only contain 3 decimel figures
-                        if verbose: print(f"VERBOSE! Duration of recording {duration}s, File size {size} bytes, Total time elapsed {chat_delta}")
-                        padding = chat_delta.total_seconds() - duration # add these seconds of silence between chats to the end of the recording
+                        if verbose: print(f"VERBOSE! Duration of recording {duration}s, File size {size} bytes")
+                        if chat_delta.total_seconds() > 0:
+                            if verbose: print(f"VERBOSE! Time from first timecode {chat_delta}")
+                            padding = chat_delta.total_seconds() - duration # add these seconds of silence between chats to the end of the current recording
+                        else: padding = time_delta.total_seconds() # record wait time between spoken paragraphs as silence
                         if verbose: print(f"VERBOSE! Seconds of padding needed {round(padding,3)}")
                         if padding >= 60:
+                            if padding > max_silence: padding = max_silence
                             minutes = int(padding / 60)
                             padding = padding%60
                             for i in range(minutes): 
-                                with open('silence.mp3', 'rb') as f2, open(recording, 'ab') as f1:
+                                with open('silence.mp3', 'rb') as f2, open(local_rec, 'ab') as f1:
                                     shutil.copyfileobj(f2, f1)
                         if padding > 0:                 
                             with open("silence.mp3", 'rb') as file1:
                                 silence = file1.read()
                             frames = int(padding/0.024 + 0.5) # number of frames needed where each frame is 0.024s
                             bytes2write = int(frames * 144) # number of bytes used by these frames
-                            if verbose: print(f"VERBOSE! Bytes needed {bytes2write}")
+                            if verbose: print(f"VERBOSE! Topup bytes needed {bytes2write}")
                             f2 = silence[:bytes2write]
-                            fileout = open(recording, 'ab')
+                            fileout = open(local_rec, 'ab')
                             fileout.write(f2)
-                            fileout.close()                  
+                            fileout.close()             
                     # append mp3 tts file to recording
-                    with open(output_file, 'rb') as f2, open(recording, 'ab') as f1:
+                    with open(output_file, 'rb') as f2, open(local_rec, 'ab') as f1:
                         shutil.copyfileobj(f2, f1)
-                        f1.close()
-                        f2.close()
+                    if paragraph: # space out paragraphs in recording
+                        with open("silence.mp3", 'rb') as file1:
+                            silence = file1.read()
+                        frames = int(0.24/0.024 + 0.5) # number of frames needed where each frame is 0.024s
+                        bytes2write = int(frames * 144) # number of bytes used by these frames
+                        if verbose: print(f"VERBOSE! Paragraph bytes needed {bytes2write}")
+                        f2 = silence[:bytes2write]
+                        fileout = open(local_rec, 'ab')
+                        fileout.write(f2)
+                        fileout.close()
         else:
-            print(f"Output file not found: {output_file}")
+            print(f"NOTICE! Output file not found: {output_file}")
             logging.error(f"Output file not found: {log_file}")
             if not test_msg:
                 current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
@@ -469,12 +449,10 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                 await asyncio.sleep(0.25)
             return
 
-        # Wait for playback to finish with timeout
-        timeout = 60  # maximum wait time in seconds
-        elapsed = 0
-        while pygame.mixer.music.get_busy() and elapsed < timeout:
+        # Wait for playback to finish
+        while pygame.mixer.music.get_busy():
+            #pygame.time.Clock().tick(10) # Not thread safe so use sleep instead
             await asyncio.sleep(0.1)
-            elapsed += 0.1
 
     finally:
         # Clean up and reset the flag
@@ -483,9 +461,11 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
 
     # When output file stops playing
     if not test_msg:
+        if paragraph and not (record and replay_chat): 
+            await asyncio.sleep(0.24) # add padding between paragraphs unless recording since recording a replay takes place without reading
         current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
         speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
-        await asyncio.sleep(0.25)
+        await asyncio.sleep(0.25) # give time for cleanup
 
 # List to store chat messages for the website
 chat_messages = []
@@ -670,7 +650,7 @@ async def chat_page_handler(request):
     </body>
     </html>
     """
-    print(f"Serving {filesend} to {request.remote}")
+    print(f"NOTICE! Serving {filesend} to {request.remote}")
     return web.Response(text=html_content, content_type='text/html')
 
 async def start_server():
@@ -685,8 +665,8 @@ async def start_server():
         try:
             site = web.TCPSite(runner, 'localhost', port)
             await site.start()
-            print(f"OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
-            logging.warning(f"OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
+            print(f"NOTICE! OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
+            logging.warning(f"NOTICE! OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
             break
         except OSError as e:
             if e.errno == 98 or e.errno == 10048:  # Port already in use
@@ -701,24 +681,39 @@ follow_timestamps = True
 record = False
 stamp_read = False
 
+record_directory = "Recordings"
+
 def name_recording():
-    global recording
+    global recording, record_directory
     # generate unique name for audio recording file
+    if record_directory[-1] != "\\":
+        record_directory = record_directory + "\\"
     dtm = datetime.now()
     if dtm.microsecond >= 500000:
         dtm = dtm + timedelta(seconds=1)
         dtm = dtm.replace(microsecond=0)
     else: dtm = dtm.replace(microsecond=0)
     dtmstr = f"{dtm}".replace(":","-")
-    recording = f"Chat {dtmstr}.mp3"
+    tmp_recording = f"{record_directory}Chat {dtmstr}.mp3"
     c = 1
-    while os. path.exists(recording) and c<1000:
-        recording = f"Chat {dtmstr} ({c}).mp3"
+    while os.path.exists(tmp_recording) and c<1000:
+        tmp_recording = f"{record_directory}Chat {dtmstr} ({c}).mp3"
         c = c + 1
     if c > 1000: 
-        print(f"WARNING! {recording} already exists.")
+        print(f"WARNING! {tmp_recording} already exists.")
         return False
-    print(f"Audio will be recorded to .\{recording} while reading chat log.")
+    try:
+        with open(tmp_recording, 'wb') as file_r:
+            file_r.close()
+    except Exception as e:
+        logging.error(f"Error creating recording file: {e}")
+        print(f"WARNING! {tmp_recording} cannot be created.")
+        return False
+    if record_directory == "":
+        prefix = ".\\"
+    else: prefix = ""
+    recording = tmp_recording
+    print(f"NOTICE! Audio will be recorded to {prefix}{recording} while reading chat log.")
     return True
  
 async def stopped_speaking():
@@ -734,10 +729,16 @@ async def stopped_speaking():
     thread = 1
     return thread
 
+line_changed = False
+paused = False
+rec_init = False
+custom = 0
+
 # Modify the monitor_log function to call update_chat
 async def monitor_log(log_file):
     global last_message, last_user, IgnoreList, last_chat, OBSChatFiltered, readloop, play_volume, min_char, name2voice, last_voice, SpeakOnlyList, slang_replacements, window
-    global current_player, output_file_counter, speaker_active, speakers, request, thread, recording, record, stamp_read
+    global current_player, output_file_counter, speaker_active, speakers, request, thread, recording, record, stamp_read, replay_chat
+    global file_position, line_changed, paused
     # await speak_text("Starting up! Monitoring log file...", "en-US-EmmaMultilingualNeural", speakers, True)
     thread = 0
     request = 0
@@ -751,8 +752,12 @@ async def monitor_log(log_file):
     date_format = '%Y-%m-%d %H:%M:%S'
     date_stamp = initial_stamp = datetime.strptime(epoch_time, date_format)
     start_time = datetime.now()
+    st_rounded = start_time
     stamp_read = False
     chat_delta = timedelta(seconds=0)
+    log_read = False
+    rec_init = False
+    log_changed = False
 
     # initiate playback counter and playback task lists for simultaneous tts encoders
     current_player = output_file_counter = 0
@@ -790,76 +795,120 @@ async def monitor_log(log_file):
                     return
             current_mod_time = os.path.getmtime(log_file)
             # Check if the file has been modified
-            if current_mod_time != last_mod_time or replay_chat:
+            if current_mod_time == last_mod_time: log_changed = False
+            else: log_changed = True
+            if replay_chat and log_read and not log_changed: # when no more new chat comes in to replay switch to normal log reading
+                if not window.replay_button.cget("state") == "disabled":
+                    print("There are no more lines to speak. Stop log reading or add new lines to the chat log to be spoken.")
+                window.chat_slider.configure(state="disabled")
+                window.replay_button.configure(state="disabled")
+                window.replay_button.configure(text = "Replay Chat", text_color="#d1d1d1")
+                window.quick_button.configure(state="disabled")
+                await stopped_speaking()
+                replay_chat = False
+                log_read = False
+                window.stop_busy()
+            if log_changed or replay_chat:
                 last_mod_time = current_mod_time
-
                 # Reopen the file to ensure we get the latest data
                 try:
                     with open(log_file, 'r', encoding='utf-8') as file:
                         file.seek(last_position)  # Seek to the last known position
                         new_lines = file.readlines()
-                        if len(new_lines) > 50000 and not iswarned:
+                        len_lines = len(new_lines)
+                        if len_lines > 50000 and not iswarned:
                             print("Warning: Log file is over 50,000 lines. This may cause performance issues.")
                             logging.warning("Log file is over 50,000 lines. This may cause performance issues.")
                             iswarned = True
                             await asyncio.sleep(0.3)
                         last_position = file.tell()  # Update the last position after reading
-                        if replay_chat and len(new_lines):
+                        if len_lines:
                             log_read = True
-                        for line in new_lines:
+                        line_number = 0
+                        #for line in new_lines:
+                        while line_number < len_lines:
+                            if replay_chat:
+                                if line_changed: # get rough position of line in text corresponding to mouse pointer
+                                    line_changed = False
+                                    line_number = int(file_position * len_lines)
+                                    stamp_read = False
+                                    if record: toggle_recording()
+                                posn = int(1000 * (1 + line_number)/len_lines) # indicate this position on slider scale and lebel
+                                window.chat_position_label.configure(text=f"Position in Chat Log File: {round(posn/10, 1)}%")
+                                window.chat_slider.set(posn)
+                            line = new_lines[line_number]
+                            line_number = line_number + 1
                             if request: # request made to stop monitoring
                                 if await stopped_speaking(): 
                                     return
                             line = line.strip()
                             if line:
                                 # Process the line (existing logic)
-                                window.start_busy()
                                 try:
+                                    window.start_busy()
+                                    if paused:
+                                        while paused:
+                                            if request: # request made to stop monitoring
+                                                if await stopped_speaking():
+                                                    paused = 0
+                                                    window.pause_button.configure(text = "\u23f8", text_color="#d1d1d1") # set pause symbol
+                                                    return
+                                            await asyncio.sleep(1.00)
+                                        stamp_read = False
+                                        #log_read = False
                                     if line.startswith("[") and line[11] == " " and (line[20] == "]" or line[17] == "]"):
                                         isemote = False
                                         isrepat = False
                                         # Extract timestamp and message
                                         timestamp, rest = line[1:].split(']', 1)
-                                        """Begin Replay Chat Log Code"""
-                                        # Read chat log file from start to end
+                                        """Begin Replay/Resume Chat Log Reading Code"""
+                                        # Read chat log file from start to end following timestamps
                                         if follow_timestamps and (replay_chat or record):
                                             # convert SL timestamp to a datetime object used by Python
+                                            date_time = timestamp.replace("/","-")
+                                            if len(date_time) is 19:
+                                                date_format = "%Y-%m-%d %H:%M:%S"
+                                            elif len(date_time) is 16:
+                                                date_format = "%Y-%m-%d %H:%M"
+                                                
                                             try:
-                                                new_stamp = parse_chat_timestamp(timestamp)
+                                                new_stamp = datetime.strptime(date_time, date_format)
                                             except Exception as e:
                                                 logging.error(f"Error reading date stamp: {e}")
-                                                continue
 
-                                            if not stamp_read:
-                                                start_time = datetime.now()
-                                                time_delta = timedelta(seconds=0)
-                                                initial_stamp = new_stamp
-                                                stamp_read = True
-                                            else:
+                                            if stamp_read:
                                                 time_delta = new_stamp - date_stamp
-                                                
-                                            # duration between this and the last chat
+                                            else:
+                                                start_time = datetime.now()
+                                                st_rounded = start_time
+                                                if st_rounded.microsecond >= 500000:
+                                                    st_rounded = st_rounded + timedelta(seconds=1)
+                                                    st_rounded = st_rounded.replace(microsecond=0)
+                                                else: st_rounded = st_rounded.replace(microsecond=0)
+                                                time_delta = timedelta(seconds=0)
+                                                if not rec_init or not record: # don't want pausing log reading interfering with the recording timing when recording so keep the stamp constant
+                                                    initial_stamp = new_stamp
+                                                    rec_init = True
+                                                prime_stamp = new_stamp # use this stamp for replay chat, or after pause is released
+                                                stamp_read = True                                              
+
+                                            # swap stamps to work out duration between new and last chat above when looped
                                             date_stamp = new_stamp
 
                                             # duration between this and the first chat
-                                            chat_delta = date_stamp - initial_stamp
-                                            
-                                            dtm = start_time
-                                            if dtm.microsecond >= 500000:
-                                                dtm = dtm + timedelta(seconds=1)
-                                                dtm = dtm.replace(microsecond=0)
-                                            else: dtm = dtm.replace(microsecond=0)
-                                      
-                                            if not record and stamp_read and replay_chat:
+                                            chat_delta = date_stamp - initial_stamp # target duration of recording starting from first time code it was started at (used to work out silence to be inserted)
+                                            chat_wait = date_stamp - prime_stamp # total time to wait after primary stamp/pause released to speak replayed chats
+                                            if not record and replay_chat:
                                                 # wait untill time difference reaches delta
-                                                print(f"TIMECODE! Waiting {time_delta.total_seconds()} seconds until {dtm + chat_delta} for next line.")
-                                                while (datetime.now() - start_time) < chat_delta:
+                                                print(f"TIMECODE! Waiting {time_delta.total_seconds()} seconds until {st_rounded + chat_wait} for next line.")
+                                                if verbose: print(f"VERBOSE! Start time {st_rounded}, Initial stamp {initial_stamp}.")
+                                                while follow_timestamps and (datetime.now() - st_rounded) < chat_wait:
                                                     if request: # request made to stop monitoring
                                                         if await stopped_speaking(): 
                                                             return
                                                     await asyncio.sleep(1.00)
                                         else: chat_delta = timedelta(seconds=0)
-                                        """End Replay Chat Log Code"""
+                                        """End Replay/Resume Chat Log Reading Code"""
                                         # speaker can exist in the following formats:
                                         # [20:00:00] Firstname: Hello
                                         # [20:00:00] Firstname Hello
@@ -1061,18 +1110,26 @@ async def monitor_log(log_file):
                                                     else: parts = [to_speak]
                                                 else:
                                                     parts = [to_speak]
-                                                for to_speak in parts:
+                                                len_parts = len(parts)
+                                                #for to_speak in parts:
+                                                for p in range(len_parts):
+                                                    to_speak = parts[p]
                                                     # Wait until an output file is free
                                                     while speaker_active[output_file_counter]:
                                                         await asyncio.sleep(0.25)
                                                     # Speak text
-                                                    if play_volume > 0:
+                                                    if play_volume > 0 or record:
+                                                        if p == len_parts - 1: # only one part of the message exists
+                                                            paragraph = True # space out paragraphs when speaking tts
+                                                        else:
+                                                            paragraph = False # segmented paragraph has not reached the last segment of sentances so don't add an end paragraph delay when speaking or recording
+                                                        pg_delta = timedelta(seconds=0) # don't delay start of speaking of paragraph or segment
                                                         speaker_active[output_file_counter] = 1
-                                                        task1[output_file_counter] = asyncio.create_task(speak_text(to_speak, thisvoice, output_file_counter, chat_delta))
-                                                        if speakers == 1: await task1[output_file_counter]
+                                                        task1[output_file_counter] = asyncio.create_task(speak_text(to_speak, thisvoice, output_file_counter, chat_delta, pg_delta, paragraph))
+                                                        if speakers == 1: await task1[output_file_counter] # default to legacy behaviour if there is only one speaker thread
                                                         # Rotate to next output file
                                                         output_file_counter = (output_file_counter + 1) % speakers
-                                                    #chat_delta = timedelta(seconds=0)
+                                                    chat_delta = timedelta(seconds=0) # clear the last value
                                                 last_chat = time.time()
 
                                             elif messageorg:
@@ -1089,9 +1146,49 @@ async def monitor_log(log_file):
                                                 speaker_part = speaker_part + ": "
                                             print(f"IGNORED! {speaker_part}{message}")
                                     elif last_user is not None or replay_chat == True:
-                                        """ Read Text File Code """
-                                        # Read any text file without SL timecodes using assigned name2voice as Narrator
-                                        if replay_chat and last_user is None:
+                                        chat_delta = timedelta(seconds=0) # no SL timecode present
+                                        """ Read Custom Delay Timestamp Code """
+                                        # Allow a reading delay or dramatic pause between when one paragraph ends and the next begins
+                                        if custom_reader and line.startswith("[") and line[9] == "." and line[13] == "]":
+                                            # Extract timestamp and message
+                                            timestamp, rest = line[1:].split(']', 1)
+                                            line = rest
+                                            if follow_timestamps and (replay_chat or record):
+                                                # convert custom timestamp to a datetime object used by Python
+                                                date_time = timestamp.replace("/","-")
+                                                if len(date_time) is 12:
+                                                    date_format = "1970-01-01 %H:%M:%S.%f"
+                                                try:
+                                                    date_time = "1970-01-01 " + date_time
+                                                    new_stamp = datetime.strptime(date_time, date_format)
+                                                    time_delta = timedelta(hours=new_stamp.hour, 
+                                                                        minutes=new_stamp.minute, 
+                                                                        seconds=new_stamp.second, 
+                                                                        microseconds=new_stamp.microsecond)
+                                                except Exception as e:
+                                                    logging.error(f"Error reading date stamp: {e}")
+                                                    time_delta = timedelta(seconds=0)
+
+                                                initime_now = datetime.now()
+
+                                                if not record and stamp_read and replay_chat:
+                                                    dtm = initime_now + time_delta
+                                                    if dtm.microsecond >= 500000:
+                                                        dtm = dtm + timedelta(seconds=1)
+                                                        dtm = dtm.replace(microsecond=0)
+                                                    else: dtm = dtm.replace(microsecond=0)
+                                                    # wait untill time difference reaches delta
+                                                    print(f"TIMECODE! Waiting {time_delta.total_seconds()} seconds until {dtm} for next paragraph.")
+                                                    while follow_timestamps and (datetime.now() - initime_now) < time_delta: # break loop if follow time staps is turned off
+                                                        if request: # request made to stop monitoring
+                                                            if await stopped_speaking(): 
+                                                                return
+                                                        await asyncio.sleep(0.10)
+                                        else: time_delta = timedelta(seconds=0)
+                                        """ End Read Custom Delay Timestamp Code """
+                                        """ Assign Text File Narrator Code """
+                                        # Read any line of text without SL timecodes using assigned name2voice as Narrator
+                                        if custom_reader and replay_chat and last_user is None:
                                             speaker_part = "Narrator"
                                             thisvoice = None
                                             if name2voice:
@@ -1112,7 +1209,7 @@ async def monitor_log(log_file):
                                                     name_cache[speaker_part] = (first_name, gender, thisvoice)
                                             last_voice = thisvoice
                                             last_user = first_name
-                                        """ End Read Text File Code """
+                                        """ End Assign Text File Narrator Code """
                                         message = line.strip()
                                         message = url2word(message).strip()
                                         message = spell_check_message(message)
@@ -1126,7 +1223,7 @@ async def monitor_log(log_file):
                                         if last_message != message and message:
                                             last_message = message
                                             print(f"{message}")
-                                            if not replay_chat or last_user is not "Narrator":
+                                            if not replay_chat or last_user != "Narrator":
                                                 await update_chat(message) # we do not want the user's name appearing in the OBS chat multiple times, formatted wrongly, if they are quoting multiple lines
                                             else: await update_chat(f"{last_user}:" + ' ' + message)
                                             parts = []
@@ -1150,15 +1247,23 @@ async def monitor_log(log_file):
                                                 else: parts = [message]
                                             else:
                                                 parts = [message]
-                                            for message in parts:
+                                            len_parts = len(parts)
+                                            for p in range(len_parts):
+                                                message = parts[p]
                                                 # Wait until an output file is free
                                                 while speaker_active[output_file_counter]:
                                                     await asyncio.sleep(0.25)
                                                 # Speak text
-                                                if play_volume > 0:
+                                                if play_volume > 0 or record:
+                                                    if p == len_parts - 1: # last sentance in paragraph or whole paragraph if not split into parts
+                                                        paragraph = True # add end of paragraph delay to recording and while reading aloud
+                                                    elif p > 0: # paragraph has been split into sentances
+                                                        time_delta = timedelta(seconds=0) # don't want to add a delay between sentances in the same paragraph so reset to zero delay
+                                                        paragraph = False
+                                                    else: paragraph = False # first sentance in split paragraph so no delay between sentances but delay between this and the last paragraph in recording
                                                     speaker_active[output_file_counter] = 1
-                                                    task1[output_file_counter] = asyncio.create_task(speak_text(message, last_voice, output_file_counter, chat_delta))
-                                                    if speakers == 1: await [output_file_counter]
+                                                    task1[output_file_counter] = asyncio.create_task(speak_text(message, last_voice, output_file_counter, chat_delta, time_delta, paragraph))
+                                                    if speakers == 1: await [output_file_counter] # legacy behaviour
                                                     # Rotate to next output file
                                                     output_file_counter = (output_file_counter + 1) % speakers
                                     else:
@@ -1173,11 +1278,8 @@ async def monitor_log(log_file):
                                     if match:
                                         rest = match.group(1).strip()
                                     print(f"IGNORED! {url2word(rest).strip()}")
-                                except Exception as e:
-                                    logging.error(f"Error processing line: {e}")
-                                    print(f"Error processing line: {e}")
-                                finally:
-                                    window.stop_busy()
+
+                                window.stop_busy()
                             await asyncio.sleep(0.3) # Qt5 update_display might crash if we spam it too fast
                 except FileNotFoundError:
                     logging.error(f"Log file not found: {log_file}")
@@ -1185,15 +1287,14 @@ async def monitor_log(log_file):
                     logging.error(f"Error reading log file IO Error: {e}")
                 except Exception as e:
                     logging.error(f"Error reading log file Unexpected error: {e}")
-            if replay_chat and log_read:
-                print("There are no more lines to speak. Stop log reading or add new lines to the chat log to be spoken.")
-                log_read = False
             await asyncio.sleep(1)
     except Exception as e:
         logging.error(f"Error in monitor_log: {e}")
-        print(f"Error while monitoring log file: {e}")
+        print(f"NOTICE! Error while monitoring log file: {e}")
     finally:
-        print("Stopped monitoring log file.")
+        print("NOTICE! Stopped monitoring log file.")
+        window.chat_position_label.configure(text=f"Position in Chat Log File: 0.0%")
+        window.chat_slider.set(0)
         shut_down_monitoring()
 
 def update_global(variable_name, value):
@@ -1206,12 +1307,12 @@ def update_global(variable_name, value):
         toprint = ''
         for item in value:
             toprint += item.strip() + ', '
-        print(f"Updated Speak Only List: {toprint[:-2]}")
+        print(f"NOTICE! Updated Speak Only List: {toprint[:-2]}")
     if variable_name == "IgnoreList":
         toprint = ''
         for item in value:
             toprint += item.strip() + ', '
-        print(f"Updated Ignore List: {toprint[:-2]}")
+        print(f"NOTICE! Updated Ignore List: {toprint[:-2]}")
     if variable_name == "Enable_Spelling_Check":
         window.global_config.set('Settings', 'enable_spelling_check', str(value))
         message = "Grammar tool and spellchecker check enabled." if value else "Grammar tool and spellchecker check disabled."
@@ -1223,7 +1324,7 @@ def update_global(variable_name, value):
     if variable_name == "OBSChatFiltered":
         window.global_config.set('Settings', 'obs_chat_filtered', str(value))
         status = "enabled" if value else "disabled"
-        print(f"Unfiltered or corrected chat to OBS page {status}.")
+        print(f"NOTICE! Unfiltered or corrected chat to OBS page {status}.")
         if value:
             window.obs_filter_button.configure(text="Toggle OBS Chat Filter", text_color="#80ff80")
         else:
@@ -1237,6 +1338,15 @@ def update_volume(value, window=None):
     if window:
         window.volume_label.configure(text=f"Output volume: {int(value)}")
 
+file_position = 0
+
+def update_position(value, window=None):
+    """Update the file position setting."""
+    global file_position
+    if window:
+        file_position = value/1000
+        window.chat_position_label.configure(text=f"Position in Chat Log File: {round(file_position*100, 1)}%")
+
 # Add this method to the MainWindow class
 def set_audio_device(selected_device):
     """Set the audio device for playback."""
@@ -1245,7 +1355,7 @@ def set_audio_device(selected_device):
     global play_volume, pygame
     pygame.mixer.quit()  # Quit the mixer to reinitialize with the new device
     pygame.mixer.init(devicename=selected_device)
-    print(f"Audio device set to: {selected_device}")
+    print(f"NOTICE! Audio device set to: {selected_device}")
     pygame.mixer.music.set_volume(play_volume)
 
 def update_minchar(value, window=None):
@@ -1277,18 +1387,24 @@ def run_server_in_background():
 
 def start_monitoring(log_file_path):
     """Start the monitor_log task."""
-    global monitor_task, monitor_loop
+    global monitor_task, monitor_loop, replay_chat
 
     if monitor_task is not None:
         logging.error("Log monitoring is already running.")
         return
 
+    if not replay_chat:
+        window.replay_button.configure(state="disabled")
+        window.chat_slider.configure(state="disabled")
+        window.chat_slider.set(1000)
+        window.chat_position_label.configure(text=f"Position in Chat Log File: 100.0%")
+    
     monitor_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(monitor_loop)
 
     monitor_task = monitor_loop.create_task(monitor_log(log_file_path))
     threading.Thread(target=monitor_loop.run_forever, daemon=True).start()
-    print(f"Started monitoring log file: {log_file_path}")
+    print(f"NOTICE! Started monitoring log file: {log_file_path}")
 
 def stop_monitoring():
     """Request to stop the monitor_log task safely."""
@@ -1326,6 +1442,11 @@ def shut_down_monitoring():
     readloop = False
     request = 0
     thread = 0
+    global replay_chat
+    if replay_chat and window.replay_button.cget("state") == "disabled":
+        toggle_replay()
+    window.replay_button.configure(state="normal")
+    #window.chat_slider.configure(state="normal")
     window.start_button.configure(text="Start Log Reading", text_color="#d1d1d1")
 
 def update_lists():
@@ -1337,7 +1458,7 @@ def update_lists():
 async def speak_test_message():
     """Speak a test message."""
     test_message = "This is a Test message from the Second Life Chat to Speech program."
-    task0 = asyncio.create_task(speak_text(test_message, "en-US-EmmaMultilingualNeural", speakers, timedelta(seconds=0), True))
+    task0 = asyncio.create_task(speak_text(test_message, "en-US-EmmaMultilingualNeural", speakers, timedelta(seconds=0), timedelta(seconds=0), False, True))
     await task0
 
 if __name__ == "__main__":
@@ -1364,6 +1485,9 @@ if __name__ == "__main__":
     follow_timestamps = config.getint('Settings', 'follow_timestamps', fallback=1)
     record = config.getint('Settings', 'record', fallback=0)
     verbose = config.getint('Settings', 'verbose', fallback=0)
+    record_directory = config.get('Settings', 'record_directory', fallback='Recordings')
+    custom_reader = config.getint('Settings', 'custom_reader', fallback=0)
+    max_silence = config.getint('Settings', 'max_silence', fallback=7200)
     # all_voices = asyncio.run(get_voices()) # Fetch all voices
 
     update_volume(config.getint('Settings', 'volume', fallback=75))
@@ -1388,16 +1512,16 @@ if __name__ == "__main__":
             readloop = True
             slang_replacements = load_slang_replacements("slangreplce.json")
             if slang_replacements:
-                print(f"Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
+                print(f"NOTICE! Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
             name2voice = load_slang_replacements("name2voice.json")
             if name2voice:
-                print(f"Name to voice file reading done, {len(name2voice)} replacements found and loaded.")
+                print(f"NOTICE! Name to voice file reading done, {len(name2voice)} replacements found and loaded.")
             chat_messages.clear()
             start_monitoring(log_file_path)
             window.start_button.configure(text="Stop Log Reading", text_color="#ff8080")
         else:
             logging.error(f"Chat Log file not found: {log_file_path}")
-            print(f"Chat Log file not found: {log_file_path}")
+            print(f"NOTICE! Chat Log file not found: {log_file_path}")
 
     def stop_monitoring_ui():
         """Stop monitoring from the UI."""
@@ -1426,12 +1550,75 @@ if __name__ == "__main__":
             if name_recording():
                 window.record_button.configure(text = "Stop Recording", text_color="#ff8080")
                 stamp_read = False
+                rec_init = False
                 record = 1
         else:
             record = 0
+            rec_init = False
             window.record_button.configure(text = "Record Audio", text_color="#d1d1d1")
-            print(f"Stopped recording to file: .\{recording}")
+            print(f"NOTICE! Stopped recording to file: {recording}")
+            
+    def toggle_replay():
+        """Toggle replay chat log based on the button state."""
+        global replay_chat, readloop, request, paused
+        if window.replay_button.cget("text") == "Replay Chat":
+            if not paused: print(f"NOTICE! Replaying chat from start of Chat Log file.")
+            window.replay_button.configure(text = "Stop Replay", text_color="#ff8080")
+            window.quick_button.configure(state="normal")
+            window.chat_slider.configure(state="normal")
+            replay_chat = 1
+        else:
+            if readloop and not request: 
+                stop_monitoring()
+            replay_chat = 0
+            window.replay_button.configure(text = "Replay Chat", text_color="#d1d1d1")
+            window.quick_button.configure(state="disabled")
+            window.chat_slider.configure(state="disabled")
+            print(f"NOTICE! Stopped replaying chat from Chat Log file.")
     
+    def open_file():
+        """Open SL Chat Log File"""
+        global log_file_path
+        position = log_file_path.rfind("\\")
+        new_log_file_path = filedialog.askopenfilename(initialdir = log_file_path[:position], title = "Select a File", filetypes = (("Text files", "*.txt*"), ("All files", "*.*")))
+        if new_log_file_path and new_log_file_path != log_file_path:
+            log_file_path = new_log_file_path
+            if readloop and not request: stop_monitoring()
+            window.log_file_path_input.delete("0", "end")
+            window.log_file_path_input.insert(0, log_file_path)
+    
+    def toggle_quick_play():
+        """Toggle Quick Play"""
+        global follow_timestamps
+        if window.quick_button.cget("text") == "Set Quick Play":
+            window.quick_button.configure(text = "Set Normal Play", text_color="#ff8080")
+            follow_timestamps = 0
+        else:
+            follow_timestamps = 1
+            window.quick_button.configure(text = "Set Quick Play", text_color="#d1d1d1")
+    
+    def toggle_pause():
+        """Toggle pause reading chat log based on the button state."""
+        global paused, request, replay_chat, stamp_read
+        if window.pause_button.cget("text") == "\u23f8" and not request: # pause symbol
+            print(f"NOTICE! Pausing log reading.")
+            window.pause_button.configure(text = "\u25b6", text_color="#ff8080") # set play symbol
+            paused = 1
+            window.quick_button.configure(state="normal")
+        else:
+            if not replay_chat and readloop: toggle_replay()
+            paused = 0
+            stamp_read = False
+            window.pause_button.configure(text = "\u23f8", text_color="#d1d1d1") # set pause symbol
+            if not readloop and not replay_chat: window.quick_button.configure(state="disabled")
+            print(f"NOTICE! Unpausing log reading.")
+    
+    def on_release(value):
+        global file_position, line_changed
+        if replay_chat:
+            line_changed = True
+            window.chat_position_label.configure(text=f"Position in Chat Log File: {round(file_position*100, 1)}%")
+ 
     # Start the server in the background
     run_server_in_background()
 
@@ -1442,8 +1629,14 @@ if __name__ == "__main__":
     window.update_ignore_list_button.configure(command=lambda: update_lists())
     window.save_config_button.configure(command=window.save_config)
     window.volume_slider.configure(command=lambda value: update_volume(float(value), window))
+    window.chat_slider.configure(command=lambda value: update_position(float(value), window))
+    window.chat_slider.bind("<ButtonRelease-1>", command=on_release)
     window.characters_slider.configure(command=lambda value: update_minchar(int(value), window))
     window.record_button.configure(command=toggle_recording)
+    window.replay_button.configure(command=toggle_replay)
+    window.open_button.configure(command=open_file)
+    window.quick_button.configure(command=toggle_quick_play)
+    window.pause_button.configure(command=toggle_pause)
     # audio_device_menu
     window.audio_device_menu.configure(command=lambda value: set_audio_device(value))
   
@@ -1465,10 +1658,18 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.0-beta3, by Jara Lowell")
+    print("Second Life Chat log to Speech version 2.0.4, by Jara Lowell")
     
     if record == True:
         toggle_recording()
+        
+    if replay_chat == True:
+        toggle_replay()
+    else:
+        window.chat_slider.configure(state="disabled")
+        
+    if follow_timestamps == False:
+        toggle_quick_play()
     
     # Start the window application event loop
     try:
