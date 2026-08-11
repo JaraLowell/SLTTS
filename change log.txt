@@ -8,7 +8,7 @@ Saving config now allows the new settings that have been added to be saved.
 
 There are multiple timestamp formats the SL chat log can use so each is now parsed.
 
-Added a timeout so that if playback stops responding the player being used will stop after 4 minutes.
+Added a timeout so that if playback stops responding the player being used will stop after the expected duration of the output file plus 60 seconds.
 
 --Jara Lowell, Socrates Dionysus, 11 August 2026
 
