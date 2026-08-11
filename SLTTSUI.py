@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import json
 import customtkinter as ctk
 from tkinter import messagebox
 from configparser import ConfigParser
@@ -35,6 +36,14 @@ class MainWindow(ctk.CTk):
         icon_path = os.path.join(getattr(sys, '_MEIPASS', os.path.abspath('.')), "SLTTS.ico")
         self.iconbitmap(icon_path)
         self.resizable(True, True)
+        self.name2voice_file = "name2voice.json"
+        self.name2voice_change_callback = None
+        self.name2voice_editor_window = None
+        self.name2voice_rows = []
+        self.slang_file = "slangreplce.json"
+        self.slang_change_callback = None
+        self.slang_editor_window = None
+        self.slang_rows = []
 
         # Busy indicator variables
         self.is_busy = False
@@ -162,13 +171,26 @@ class MainWindow(ctk.CTk):
         self.onlytalk_list_input.insert("1.0", self.global_config.get('Settings', 'speak_only_list', fallback=""))
         self.onlytalk_list_input.grid(row=8, column=1, sticky="ew", pady=(0, 6))
 
-        # Update Ignore List button
-        self.update_ignore_list_button = ctk.CTkButton(self.main_frame, text="Update Ignore List", font=("Consolas", 14, "bold"), command=self.update_ignore_list, width=220, border_width=0, border_color="#888888")
-        self.update_ignore_list_button.grid(row=9, column=1, columnspan=2, sticky="ne", pady=(2, 15), padx=(0, 3))
+        # Bottom action buttons on one row
+        self.bottom_actions_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.bottom_actions_frame.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(2, 15), padx=(3, 3))
+        self.bottom_actions_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
         # Save Config button
-        self.save_config_button = ctk.CTkButton(self.main_frame, text="Save Config", font=("Consolas", 14, "bold"), command=self.save_config, width=220, border_width=0, border_color="#888888")
-        self.save_config_button.grid(row=9, column=0, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
+        self.save_config_button = ctk.CTkButton(self.bottom_actions_frame, text="Save Config", font=("Consolas", 14, "bold"), command=self.save_config, width=220, border_width=0, border_color="#888888")
+        self.save_config_button.grid(row=0, column=0, padx=(0, 4), sticky="w")
+
+        # Name to voice editor button
+        self.name_sex_button = ctk.CTkButton(self.bottom_actions_frame, text="Name Sex", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888", command=self.open_name2voice_editor)
+        self.name_sex_button.grid(row=0, column=1, padx=4, sticky="ew")
+
+        # Slang replacement editor button
+        self.slang_edit_button = ctk.CTkButton(self.bottom_actions_frame, text="Slang Edit", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888", command=self.open_slang_editor)
+        self.slang_edit_button.grid(row=0, column=2, padx=4, sticky="ew")
+
+        # Update Ignore List button
+        self.update_ignore_list_button = ctk.CTkButton(self.bottom_actions_frame, text="Update Ignore List", font=("Consolas", 14, "bold"), command=self.update_ignore_list, width=220, border_width=0, border_color="#888888")
+        self.update_ignore_list_button.grid(row=0, column=3, padx=(4, 0), sticky="e")
         
         # Record button
         self.record_button = ctk.CTkButton(self.button_frame, text="Record Audio", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
@@ -185,7 +207,7 @@ class MainWindow(ctk.CTk):
         # Open log file button
         self.open_button = ctk.CTkButton(self.button_frame, text="Open File", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
         self.open_button.grid(row=1, column=4, sticky="nw", pady=(5, 0), padx=(5, 0))
-        
+
         # Pause button
         self.pause_button = ctk.CTkButton(self.button_frame, text="\u23f8", font=("Consolas", 14, "bold"), width=20, border_width=0, border_color="#888888")
         self.pause_button.grid(row=1, column=0, columnspan=1, sticky="nw", pady=(5, 0), padx=(5,0))
@@ -228,6 +250,322 @@ class MainWindow(ctk.CTk):
         self.global_config.set('Settings', 'ignore_list', input_text)
         input_text = self.onlytalk_list_input.get("1.0", "end-1c").strip().lower()
         self.global_config.set('Settings', 'speak_only_list', input_text)
+
+    def set_name2voice_change_callback(self, callback):
+        self.name2voice_change_callback = callback
+
+    def set_slang_change_callback(self, callback):
+        self.slang_change_callback = callback
+
+    def open_name2voice_editor(self):
+        if self.name2voice_editor_window is not None and self.name2voice_editor_window.winfo_exists():
+            self.name2voice_editor_window.lift()
+            self.name2voice_editor_window.focus_force()
+            return
+
+        self.name2voice_editor_window = ctk.CTkToplevel(self)
+        self.name2voice_editor_window.title("Name to Voice Mapping")
+        self.name2voice_editor_window.geometry("920x640")
+        self.name2voice_editor_window.transient(self)
+        self.name2voice_editor_window.grab_set()
+        self.name2voice_editor_window.protocol("WM_DELETE_WINDOW", self._close_name2voice_editor)
+
+        outer = ctk.CTkFrame(self.name2voice_editor_window, corner_radius=10)
+        outer.pack(fill="both", expand=True, padx=10, pady=10)
+        outer.grid_columnconfigure(0, weight=1)
+        outer.grid_rowconfigure(2, weight=1)
+
+        title_label = ctk.CTkLabel(outer, text="Name / Voice Mapping", font=("Consolas", 18, "bold"))
+        title_label.grid(row=0, column=0, sticky="w", padx=12, pady=(10, 6))
+
+        header_frame = ctk.CTkFrame(outer, fg_color="transparent")
+        header_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 6))
+        header_frame.grid_columnconfigure(0, weight=3)
+        header_frame.grid_columnconfigure(1, weight=4)
+        ctk.CTkLabel(header_frame, text="Name", font=("Consolas", 13, "bold")).grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(header_frame, text="TTS Voice", font=("Consolas", 13, "bold")).grid(row=0, column=1, sticky="w")
+
+        self.name2voice_rows = []
+        self.name2voice_rows_frame = ctk.CTkScrollableFrame(outer, corner_radius=8)
+        self.name2voice_rows_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 6))
+        self.name2voice_rows_frame.grid_columnconfigure(0, weight=1)
+
+        controls_frame = ctk.CTkFrame(outer, fg_color="transparent")
+        controls_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(4, 10))
+
+        add_button = ctk.CTkButton(controls_frame, text="Add Row", width=160, command=lambda: self._add_name2voice_row("", ""))
+        add_button.pack(side="left", padx=(0, 6))
+
+        cancel_button = ctk.CTkButton(controls_frame, text="Cancel", width=160, fg_color="#5e5e5e", hover_color="#4e4e4e", command=self._close_name2voice_editor)
+        cancel_button.pack(side="right", padx=(6, 0))
+
+        save_button = ctk.CTkButton(controls_frame, text="Save", width=160, command=self._save_name2voice_editor)
+        save_button.pack(side="right", padx=(6, 0))
+
+        rows = self._load_name2voice_rows()
+        if not rows:
+            rows = [("", "")]
+
+        for name, voice in rows:
+            self._add_name2voice_row(name, voice)
+
+    def _load_name2voice_rows(self):
+        if not os.path.exists(self.name2voice_file):
+            return []
+
+        try:
+            with open(self.name2voice_file, "r", encoding="utf-8") as file:
+                data = json.load(file)
+        except json.JSONDecodeError as e:
+            messagebox.showerror("Invalid JSON", f"Cannot read {self.name2voice_file}:\n{e}")
+            return []
+        except OSError as e:
+            messagebox.showerror("File Error", f"Cannot read {self.name2voice_file}:\n{e}")
+            return []
+
+        if isinstance(data, dict):
+            return list(data.items())
+
+        messagebox.showwarning("Unexpected Format", f"{self.name2voice_file} should contain a JSON object mapping names to voices.")
+        return []
+
+    def _add_name2voice_row(self, name="", voice=""):
+        row_frame = ctk.CTkFrame(self.name2voice_rows_frame, fg_color="transparent")
+        row_frame.grid_columnconfigure(0, weight=3)
+        row_frame.grid_columnconfigure(1, weight=4)
+
+        name_entry = ctk.CTkEntry(row_frame, border_width=0)
+        name_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8), pady=3)
+        name_entry.insert(0, str(name))
+
+        voice_entry = ctk.CTkEntry(row_frame, border_width=0)
+        voice_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8), pady=3)
+        voice_entry.insert(0, str(voice))
+
+        remove_button = ctk.CTkButton(row_frame, text="Remove", width=90, fg_color="#9c4f4f", hover_color="#874343", command=lambda f=row_frame: self._remove_name2voice_row(f))
+        remove_button.grid(row=0, column=2, sticky="e", pady=3)
+
+        self.name2voice_rows.append({
+            "frame": row_frame,
+            "name_entry": name_entry,
+            "voice_entry": voice_entry,
+        })
+        self._refresh_name2voice_row_positions()
+
+    def _remove_name2voice_row(self, row_frame):
+        if len(self.name2voice_rows) == 1:
+            only_row = self.name2voice_rows[0]
+            only_row["name_entry"].delete(0, "end")
+            only_row["voice_entry"].delete(0, "end")
+            return
+
+        self.name2voice_rows = [row for row in self.name2voice_rows if row["frame"] != row_frame]
+        row_frame.destroy()
+        self._refresh_name2voice_row_positions()
+
+    def _refresh_name2voice_row_positions(self):
+        for index, row in enumerate(self.name2voice_rows):
+            row["frame"].grid(row=index, column=0, sticky="ew", pady=(0, 4), padx=4)
+
+    def _save_name2voice_editor(self):
+        mapping = {}
+        seen_names = set()
+
+        for row in self.name2voice_rows:
+            name = row["name_entry"].get().strip()
+            voice = row["voice_entry"].get().strip()
+
+            if not name and not voice:
+                continue
+            if not name or not voice:
+                messagebox.showwarning("Missing Value", "Each row must include both a name and a voice.")
+                return
+
+            key = name.lower()
+            if key in seen_names:
+                messagebox.showwarning("Duplicate Name", f"Duplicate name found: {name}")
+                return
+
+            seen_names.add(key)
+            mapping[name] = voice
+
+        try:
+            with open(self.name2voice_file, "w", encoding="utf-8") as file:
+                json.dump(mapping, file, indent=2, ensure_ascii=False)
+        except OSError as e:
+            messagebox.showerror("Save Failed", f"Could not write {self.name2voice_file}:\n{e}")
+            return
+
+        if callable(self.name2voice_change_callback):
+            try:
+                self.name2voice_change_callback()
+            except Exception as e:
+                self.update_display(f"NOTICE! Mapping saved, but reload failed: {e}")
+
+        self.update_display(f"NOTICE! Saved {len(mapping)} entries to {self.name2voice_file}.")
+        self._close_name2voice_editor()
+
+    def _close_name2voice_editor(self):
+        if self.name2voice_editor_window is not None and self.name2voice_editor_window.winfo_exists():
+            self.name2voice_editor_window.grab_release()
+            self.name2voice_editor_window.destroy()
+        self.name2voice_editor_window = None
+        self.name2voice_rows = []
+
+    def open_slang_editor(self):
+        if self.slang_editor_window is not None and self.slang_editor_window.winfo_exists():
+            self.slang_editor_window.lift()
+            self.slang_editor_window.focus_force()
+            return
+
+        self.slang_editor_window = ctk.CTkToplevel(self)
+        self.slang_editor_window.title("Slang Replacement Mapping")
+        self.slang_editor_window.geometry("920x640")
+        self.slang_editor_window.transient(self)
+        self.slang_editor_window.grab_set()
+        self.slang_editor_window.protocol("WM_DELETE_WINDOW", self._close_slang_editor)
+
+        outer = ctk.CTkFrame(self.slang_editor_window, corner_radius=10)
+        outer.pack(fill="both", expand=True, padx=10, pady=10)
+        outer.grid_columnconfigure(0, weight=1)
+        outer.grid_rowconfigure(2, weight=1)
+
+        title_label = ctk.CTkLabel(outer, text="Slang / Replacement Mapping", font=("Consolas", 18, "bold"))
+        title_label.grid(row=0, column=0, sticky="w", padx=12, pady=(10, 6))
+
+        header_frame = ctk.CTkFrame(outer, fg_color="transparent")
+        header_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 6))
+        header_frame.grid_columnconfigure(0, weight=3)
+        header_frame.grid_columnconfigure(1, weight=4)
+        ctk.CTkLabel(header_frame, text="Word", font=("Consolas", 13, "bold")).grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(header_frame, text="Replacement", font=("Consolas", 13, "bold")).grid(row=0, column=1, sticky="w")
+
+        self.slang_rows = []
+        self.slang_rows_frame = ctk.CTkScrollableFrame(outer, corner_radius=8)
+        self.slang_rows_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 6))
+        self.slang_rows_frame.grid_columnconfigure(0, weight=1)
+
+        controls_frame = ctk.CTkFrame(outer, fg_color="transparent")
+        controls_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(4, 10))
+
+        add_button = ctk.CTkButton(controls_frame, text="Add Row", width=160, command=lambda: self._add_slang_row("", ""))
+        add_button.pack(side="left", padx=(0, 6))
+
+        cancel_button = ctk.CTkButton(controls_frame, text="Cancel", width=160, fg_color="#5e5e5e", hover_color="#4e4e4e", command=self._close_slang_editor)
+        cancel_button.pack(side="right", padx=(6, 0))
+
+        save_button = ctk.CTkButton(controls_frame, text="Save", width=160, command=self._save_slang_editor)
+        save_button.pack(side="right", padx=(6, 0))
+
+        rows = self._load_slang_rows()
+        if not rows:
+            rows = [("", "")]
+
+        for word, replacement in rows:
+            self._add_slang_row(word, replacement)
+
+    def _load_slang_rows(self):
+        if not os.path.exists(self.slang_file):
+            return []
+
+        try:
+            with open(self.slang_file, "r", encoding="utf-8") as file:
+                data = json.load(file)
+        except json.JSONDecodeError as e:
+            messagebox.showerror("Invalid JSON", f"Cannot read {self.slang_file}:\n{e}")
+            return []
+        except OSError as e:
+            messagebox.showerror("File Error", f"Cannot read {self.slang_file}:\n{e}")
+            return []
+
+        if isinstance(data, dict):
+            return list(data.items())
+
+        messagebox.showwarning("Unexpected Format", f"{self.slang_file} should contain a JSON object mapping words to replacements.")
+        return []
+
+    def _add_slang_row(self, word="", replacement=""):
+        row_frame = ctk.CTkFrame(self.slang_rows_frame, fg_color="transparent")
+        row_frame.grid_columnconfigure(0, weight=3)
+        row_frame.grid_columnconfigure(1, weight=4)
+
+        word_entry = ctk.CTkEntry(row_frame, border_width=0)
+        word_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8), pady=3)
+        word_entry.insert(0, str(word))
+
+        replacement_entry = ctk.CTkEntry(row_frame, border_width=0)
+        replacement_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8), pady=3)
+        replacement_entry.insert(0, str(replacement))
+
+        remove_button = ctk.CTkButton(row_frame, text="Remove", width=90, fg_color="#9c4f4f", hover_color="#874343", command=lambda f=row_frame: self._remove_slang_row(f))
+        remove_button.grid(row=0, column=2, sticky="e", pady=3)
+
+        self.slang_rows.append({
+            "frame": row_frame,
+            "word_entry": word_entry,
+            "replacement_entry": replacement_entry,
+        })
+        self._refresh_slang_row_positions()
+
+    def _remove_slang_row(self, row_frame):
+        if len(self.slang_rows) == 1:
+            only_row = self.slang_rows[0]
+            only_row["word_entry"].delete(0, "end")
+            only_row["replacement_entry"].delete(0, "end")
+            return
+
+        self.slang_rows = [row for row in self.slang_rows if row["frame"] != row_frame]
+        row_frame.destroy()
+        self._refresh_slang_row_positions()
+
+    def _refresh_slang_row_positions(self):
+        for index, row in enumerate(self.slang_rows):
+            row["frame"].grid(row=index, column=0, sticky="ew", pady=(0, 4), padx=4)
+
+    def _save_slang_editor(self):
+        mapping = {}
+        seen_words = set()
+
+        for row in self.slang_rows:
+            word = row["word_entry"].get().strip()
+            replacement = row["replacement_entry"].get().strip()
+
+            if not word and not replacement:
+                continue
+            if not word or not replacement:
+                messagebox.showwarning("Missing Value", "Each row must include both a word and its replacement.")
+                return
+
+            key = word.lower()
+            if key in seen_words:
+                messagebox.showwarning("Duplicate Word", f"Duplicate word found: {word}")
+                return
+
+            seen_words.add(key)
+            mapping[word] = replacement
+
+        try:
+            with open(self.slang_file, "w", encoding="utf-8") as file:
+                json.dump(mapping, file, indent=2, ensure_ascii=False)
+        except OSError as e:
+            messagebox.showerror("Save Failed", f"Could not write {self.slang_file}:\n{e}")
+            return
+
+        if callable(self.slang_change_callback):
+            try:
+                self.slang_change_callback()
+            except Exception as e:
+                self.update_display(f"NOTICE! Slang file saved, but reload failed: {e}")
+
+        self.update_display(f"NOTICE! Saved {len(mapping)} entries to {self.slang_file}.")
+        self._close_slang_editor()
+
+    def _close_slang_editor(self):
+        if self.slang_editor_window is not None and self.slang_editor_window.winfo_exists():
+            self.slang_editor_window.grab_release()
+            self.slang_editor_window.destroy()
+        self.slang_editor_window = None
+        self.slang_rows = []
 
     def save_config(self):
         defaults = {

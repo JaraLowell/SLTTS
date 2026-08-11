@@ -478,7 +478,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                         fileout.close()
         else:
             print(f"NOTICE! Output file not found: {output_file}")
-            logging.error(f"Output file not found: {log_file}")
+            logging.error(f"Output file not found: {output_file}")
             if not test_msg:
                 current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
                 speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
@@ -1552,6 +1552,24 @@ if __name__ == "__main__":
     slang_replacements = {}
     name2voice = {}
 
+    def refresh_name2voice_mapping():
+        """Reload name-to-voice mappings from disk so UI edits take effect immediately."""
+        global name2voice
+        name2voice = load_slang_replacements("name2voice.json")
+        if name2voice:
+            print(f"NOTICE! Name to voice file reading done, {len(name2voice)} replacements found and loaded.")
+        else:
+            print("NOTICE! Name to voice file is empty, missing, or contains no valid entries.")
+
+    def refresh_slang_mapping():
+        """Reload slang replacement mappings from disk so UI edits take effect immediately."""
+        global slang_replacements
+        slang_replacements = load_slang_replacements("slangreplce.json")
+        if slang_replacements:
+            print(f"NOTICE! Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
+        else:
+            print("NOTICE! Abbreviation file is empty, missing, or contains no valid entries.")
+
     def start_monitoring_ui():
         """Start monitoring from the UI."""
         global chat_messages, slang_replacements, readloop, name2voice
@@ -1559,12 +1577,8 @@ if __name__ == "__main__":
         log_file_path = window.log_file_path_input.get()  # Get the log file path from the input field
         if os.path.exists(log_file_path):
             readloop = True
-            slang_replacements = load_slang_replacements("slangreplce.json")
-            if slang_replacements:
-                print(f"NOTICE! Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
-            name2voice = load_slang_replacements("name2voice.json")
-            if name2voice:
-                print(f"NOTICE! Name to voice file reading done, {len(name2voice)} replacements found and loaded.")
+            refresh_slang_mapping()
+            refresh_name2voice_mapping()
             chat_messages.clear()
             start_monitoring(log_file_path)
             window.start_button.configure(text="Stop Log Reading", text_color="#ff8080")
@@ -1686,6 +1700,8 @@ if __name__ == "__main__":
     window.open_button.configure(command=open_file)
     window.quick_button.configure(command=toggle_quick_play)
     window.pause_button.configure(command=toggle_pause)
+    window.set_name2voice_change_callback(refresh_name2voice_mapping)
+    window.set_slang_change_callback(refresh_slang_mapping)
     # audio_device_menu
     window.audio_device_menu.configure(command=lambda value: set_audio_device(value))
   
