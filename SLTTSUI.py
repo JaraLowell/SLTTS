@@ -6,28 +6,6 @@ from tkinter import messagebox
 from configparser import ConfigParser
 from pygame._sdl2 import get_audio_device_names
 
-
-def merge_config_settings(config, current_values, default_values=None):
-    """Merge current UI values into the config while preserving existing values."""
-    default_values = default_values or {}
-
-    if not config.has_section('Settings'):
-        config.add_section('Settings')
-
-    for key, value in default_values.items():
-        if not config.has_option('Settings', key):
-            config.set('Settings', key, str(value))
-
-    for key, value in current_values.items():
-        if value is None:
-            continue
-        if value == '':
-            continue
-        config.set('Settings', key, str(value))
-
-    return config
-
-
 class MainWindow(ctk.CTk):
     def __init__(self, global_config):
         super().__init__()
@@ -61,6 +39,7 @@ class MainWindow(ctk.CTk):
         self.text_display.tag_config("T", foreground="#a1a1a1")
         self.text_display.tag_config("B", foreground="#8080ff")
         self.text_display.tag_config("G", foreground="#80ff80")
+        self.text_display.tag_config("A", foreground="#f1da80")
         self.main_frame.rowconfigure(0, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
 
@@ -69,8 +48,8 @@ class MainWindow(ctk.CTk):
         self.button_frame.grid(row=1, column=0, columnspan=2, sticky="n", pady=(2, 12))
 
         # Status indicator (clock when busy, invisible when not)
-        self.status_indicator = ctk.CTkLabel(self.button_frame, text="  ", font=("Consolas", 20))
-        self.status_indicator.grid(row=0, column=0, padx=5)
+        self.status_indicator = ctk.CTkLabel(self.button_frame, text=self.busy_chars[0], font=("Consolas", 20))
+        self.status_indicator.grid(row=0, column=0,  padx=(5,0))
 
         self.start_button = ctk.CTkButton(self.button_frame, text="Start Log Reading", text_color="#d1d1d1", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
         self.start_button.grid(row=0, column=1, padx=5)
@@ -109,6 +88,19 @@ class MainWindow(ctk.CTk):
         self.volume_slider.set(int(self.global_config.get('Settings', 'volume', fallback=75)))
         self.volume_slider.grid(row=2, column=1, sticky="ew", pady=(6, 6))
 
+        # Chat position slider
+        log_file = self.global_config.get('Settings', 'log_file_path', fallback="")
+        if os.path.exists(log_file):
+            size = os.path.getsize(log_file)
+        else: size = 0
+
+        self.chat_position_label = ctk.CTkLabel(self.main_frame, text="Position in Chat Log File: 0.0%", font=("Consolas", 12, "bold"))
+        self.chat_position_label.grid(row=5, column=0, sticky="w")
+
+        self.chat_slider = ctk.CTkSlider(self.main_frame, from_=0, to=1000)
+        self.chat_slider.set(0)
+        self.chat_slider.grid(row=5, column=1, sticky="ew", pady=(6, 6))
+
         # Minimumm Characters to send to TTS
         tmpvalue = int(self.global_config.get('Settings', 'min_char', fallback=2))
         self.characters_label = ctk.CTkLabel(self.main_frame, text="Minimum Characters To Speak: " + str(tmpvalue), font=("Consolas", 12, "bold"))
@@ -124,43 +116,59 @@ class MainWindow(ctk.CTk):
 
         self.log_file_path_input = ctk.CTkEntry(self.main_frame, border_width=0)
         self.log_file_path_input.insert(0, self.global_config.get('Settings', 'log_file_path', fallback=""))
-        self.log_file_path_input.grid(row=4, column=1, sticky="ew", pady=(0, 6))
+        self.log_file_path_input.grid(row=4, column=1, sticky="ew", pady=(6, 6))
 
         # Edge TTS Voice input
         self.edge_voice_label = ctk.CTkLabel(self.main_frame, text="Edge TTS Voice LLM (M,F):", font=("Consolas", 12, "bold"))
-        self.edge_voice_label.grid(row=5, column=0, sticky="w")
+        self.edge_voice_label.grid(row=6, column=0, sticky="w")
 
         self.edge_voice_input = ctk.CTkEntry(self.main_frame, border_width=0)
         self.edge_voice_input.insert(0, self.global_config.get('Settings', 'edge_tts_llm', fallback=""))
-        self.edge_voice_input.grid(row=5, column=1, sticky="ew", pady=(0, 6))
+        self.edge_voice_input.grid(row=6, column=1, sticky="ew", pady=(0, 6))
 
         # IgnoreList management
         self.ignore_list_label = ctk.CTkLabel(self.main_frame, text="Ignore Object, Avatar List\n(comma-separated):", font=("Consolas", 12, "bold"))
-        self.ignore_list_label.grid(row=6, column=0, sticky="nw")
+        self.ignore_list_label.grid(row=7, column=0, sticky="nw")
 
         self.ignore_list_input = ctk.CTkTextbox(self.main_frame, height=50, wrap="word")
         self.ignore_list_input.insert("1.0", self.global_config.get('Settings', 'ignore_list', fallback=""))
-        self.ignore_list_input.grid(row=6, column=1, sticky="ew", pady=(0, 6))
+        self.ignore_list_input.grid(row=7, column=1, sticky="ew", pady=(0, 6))
 
         # Names allowed to speak list management
         self.onlytalk_list_label = ctk.CTkLabel(self.main_frame, text="Only allowed to talk List\n(comma-separated):", font=("Consolas", 12, "bold"))
-        self.onlytalk_list_label.grid(row=7, column=0, sticky="nw")
+        self.onlytalk_list_label.grid(row=8, column=0, sticky="nw")
 
         self.onlytalk_list_input = ctk.CTkTextbox(self.main_frame, height=50, wrap="word")
         self.onlytalk_list_input.insert("1.0", self.global_config.get('Settings', 'speak_only_list', fallback=""))
-        self.onlytalk_list_input.grid(row=7, column=1, sticky="ew", pady=(0, 6))
+        self.onlytalk_list_input.grid(row=8, column=1, sticky="ew", pady=(0, 6))
 
         # Update Ignore List button
         self.update_ignore_list_button = ctk.CTkButton(self.main_frame, text="Update Ignore List", font=("Consolas", 14, "bold"), command=self.update_ignore_list, width=220, border_width=0, border_color="#888888")
-        self.update_ignore_list_button.grid(row=8, column=0, columnspan=2, sticky="ne", pady=(2, 15), padx=(0, 3))
+        self.update_ignore_list_button.grid(row=9, column=1, columnspan=2, sticky="ne", pady=(2, 15), padx=(0, 3))
 
         # Save Config button
         self.save_config_button = ctk.CTkButton(self.main_frame, text="Save Config", font=("Consolas", 14, "bold"), command=self.save_config, width=220, border_width=0, border_color="#888888")
-        self.save_config_button.grid(row=8, column=0, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
-
+        self.save_config_button.grid(row=9, column=0, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
+        
         # Record button
-        self.record_button = ctk.CTkButton(self.main_frame, text="Record Audio", font=("Consolas", 14, "bold"), command=self.record, width=220, border_width=0, border_color="#888888")
-        self.record_button.grid(row=8, column=1, columnspan=1, sticky="nw", pady=(2, 15), padx=(3, 0))
+        self.record_button = ctk.CTkButton(self.button_frame, text="Record Audio", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
+        self.record_button.grid(row=1, column=1, columnspan=1, sticky="nw", pady=(5, 0), padx=(5, 0))
+
+        # Replay button
+        self.replay_button = ctk.CTkButton(self.button_frame, text="Replay Chat", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
+        self.replay_button.grid(row=1, column=2, columnspan=1, sticky="nw", pady=(5, 0), padx=(5, 0))
+
+        # Quick play button
+        self.quick_button = ctk.CTkButton(self.button_frame, text="Set Quick Play", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888", state=ctk.DISABLED)
+        self.quick_button.grid(row=1, column=3, columnspan=1, sticky="nw", pady=(5, 0), padx=(5, 0))
+
+        # Open log file button
+        self.open_button = ctk.CTkButton(self.button_frame, text="Open File", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888")
+        self.open_button.grid(row=1, column=4, sticky="nw", pady=(5, 0), padx=(5, 0))
+        
+        # Pause button
+        self.pause_button = ctk.CTkButton(self.button_frame, text="\u23f8", font=("Consolas", 14, "bold"), width=20, border_width=0, border_color="#888888")
+        self.pause_button.grid(row=1, column=0, columnspan=1, sticky="nw", pady=(5, 0), padx=(5,0))
 
     def toggle_spelling_check(self):
         current_value = self.global_config.getboolean('Settings', 'enable_spelling_check', fallback=True)
@@ -181,6 +189,9 @@ class MainWindow(ctk.CTk):
         elif 'TIMECODE! ' in message:
             message = message.replace("TIMECODE! ", "")
             self.text_display.insert("end", message + "\n", "B")
+        elif 'NOTICE! ' in message:
+            message = message.replace("NOTICE! ", "")
+            self.text_display.insert("end", message + "\n", "A")
         elif 'VERBOSE! ' in message:
             message = message.replace("VERBOSE! ", "")
             self.text_display.insert("end", message + "\n", "G")
@@ -199,34 +210,13 @@ class MainWindow(ctk.CTk):
         self.global_config.set('Settings', 'speak_only_list', input_text)
 
     def save_config(self):
-        defaults = {
-            'log_file_path': '',
-            'enable_spelling_check': 'False',
-            'ignore_list': '',
-            'obs_chat_filtered': 'True',
-            'edge_tts_llm': 'en-US-EmmaMultilingualNeural',
-            'volume': '75',
-            'window_geometry': '1024x768',
-            'min_char': '2',
-            'speak_only_list': '',
-            'concurrent_edge_tts_threads': '3',
-            'replay_chat': '0',
-            'follow_timestamps': '1',
-            'record': '0',
-            'verbose': '0',
-        }
-        current_values = {
-            'log_file_path': self.log_file_path_input.get(),
-            'edge_tts_llm': self.edge_voice_input.get(),
-            'window_geometry': self.geometry(),
-            'volume': str(int(self.volume_slider.get())),
-            'ignore_list': self.ignore_list_input.get("1.0", "end-1c").strip().lower(),
-            'speak_only_list': self.onlytalk_list_input.get("1.0", "end-1c").strip().lower(),
-            'min_char': str(int(self.characters_slider.get())),
-            'obs_chat_filtered': str(self.global_config.getboolean('Settings', 'obs_chat_filtered', fallback=True)),
-            'enable_spelling_check': str(self.global_config.getboolean('Settings', 'enable_spelling_check', fallback=False)),
-        }
-        self.global_config = merge_config_settings(self.global_config, current_values, defaults)
+        self.global_config.set('Settings', 'log_file_path', self.log_file_path_input.get())
+        self.global_config.set('Settings', 'edge_tts_llm', self.edge_voice_input.get())
+        self.global_config.set('Settings', 'window_geometry', self.geometry())
+        self.global_config.set('Settings', 'volume', str(int(self.volume_slider.get())))
+        self.global_config.set('Settings', 'ignore_list', self.ignore_list_input.get("1.0", "end-1c").strip().lower())
+        self.global_config.set('Settings', 'speak_only_list', self.onlytalk_list_input.get("1.0", "end-1c").strip().lower())
+        self.global_config.set('Settings', 'min_char', str(int(self.characters_slider.get())))
         with open("config.ini", 'w') as config_file:
             self.global_config.write(config_file)
         self.update_display("Configuration saved.")
@@ -246,7 +236,7 @@ class MainWindow(ctk.CTk):
         if self.busy_animation_id is not None:
             self.after_cancel(self.busy_animation_id)
             self.busy_animation_id = None
-        self.status_indicator.configure(text="  ")  # Hide status indicator
+        self.status_indicator.configure(text=self.busy_chars[0])  # Hide status indicator
 
     def update_busy_indicator(self):
         if self.is_busy:
