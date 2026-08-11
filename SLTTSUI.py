@@ -606,17 +606,21 @@ class MainWindow(ctk.CTk):
         self.destroy()
 
     def start_busy(self):
-        self.is_busy = True
-        self.busy_index = 0
-        self.busy_animation_id = self.after(100, self.update_busy_indicator)
-        self.status_indicator.configure(text=self.busy_chars[0])  # Show initial clock
+        self.busy_ref_count = getattr(self, 'busy_ref_count', 0) + 1
+        if self.busy_ref_count == 1:
+            self.is_busy = True
+            self.busy_index = 0
+            self.busy_animation_id = self.after(100, self.update_busy_indicator)
+            self.status_indicator.configure(text=self.busy_chars[0])
 
     def stop_busy(self):
-        self.is_busy = False
-        if self.busy_animation_id is not None:
-            self.after_cancel(self.busy_animation_id)
-            self.busy_animation_id = None
-        self.status_indicator.configure(text=self.busy_chars[0])  # Hide status indicator
+        self.busy_ref_count = max(0, getattr(self, 'busy_ref_count', 1) - 1)
+        if self.busy_ref_count == 0:
+            self.is_busy = False
+            if self.busy_animation_id is not None:
+                self.after_cancel(self.busy_animation_id)
+                self.busy_animation_id = None
+            self.status_indicator.configure(text=self.busy_chars[0])
 
     def update_busy_indicator(self):
         if self.is_busy:
