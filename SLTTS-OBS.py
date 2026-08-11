@@ -431,6 +431,17 @@ speakers = 3
 recording = ""
 max_silence = 3600
 
+def release_speaker_slot(current_player, speaker_active, speakers, local_file_counter):
+    """Advance the speaker turn and clear the given slot."""
+    if speakers <= 0:
+        return current_player
+
+    if local_file_counter >= len(speaker_active):
+        speaker_active.extend([0] * (local_file_counter + 1 - len(speaker_active)))
+
+    speaker_active[local_file_counter] = 0
+    return (current_player + 1) % speakers
+
 async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), time_delta = timedelta(seconds=0), paragraph = True, test_msg = False):
     """Use Edge TTS to speak the given text."""
     global EdgeVoice, window, current_player, speaker_active, speakers, follow_timestamps, record, replay_chat, verbose
@@ -468,8 +479,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                 # Wait for other concurrent threads to give way to play each output file in the right order
                 while local_file_counter != globals()["current_player"]:
                     await asyncio.sleep(0.25)
-                current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
-                speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+                current_player = release_speaker_slot(current_player, speaker_active, speakers, local_file_counter)
             return
 
         # Wait to play or record output file in the right order over multiple threads
@@ -533,8 +543,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             print(f"NOTICE! Output file not found: {output_file}")
             logging.error(f"Output file not found: {output_file}")
             if not test_msg:
-                current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
-                speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+                current_player = release_speaker_slot(current_player, speaker_active, speakers, local_file_counter)
                 await asyncio.sleep(0.25)
             return
 
@@ -559,8 +568,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
     if not test_msg:
         if paragraph and not (record and replay_chat): 
             await asyncio.sleep(0.24) # add padding between paragraphs unless recording since recording a replay takes place without reading
-        current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
-        speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+        current_player = release_speaker_slot(current_player, speaker_active, speakers, local_file_counter)
         await asyncio.sleep(0.25) # give time for cleanup
 
 # List to store chat messages for the website
