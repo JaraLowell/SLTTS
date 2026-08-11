@@ -486,7 +486,11 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             return
 
         # Wait for playback to finish with timeout
-        timeout = 240  # maximum wait time in seconds
+        if os.path.exists(output_file):
+            size = os.path.getsize(output_file)
+        else: size = 0
+        duration = round(size/144 * 0.024,3) # total duration of mp3 recording so far, rounded to correct maths errors since the result can only contain 3 decimel figures
+        timeout = 60 + duration # maximum wait time in seconds
         elapsed = 0
         while pygame.mixer.music.get_busy() and elapsed < timeout:
             #pygame.time.Clock().tick(10) # Not thread safe so use sleep instead
