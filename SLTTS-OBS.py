@@ -1324,8 +1324,11 @@ async def monitor_log(log_file):
                                     if match:
                                         rest = match.group(1).strip()
                                     print(f"IGNORED! {url2word(rest).strip()}")
-
-                                window.stop_busy()
+                                except Exception as e:
+                                    logging.error(f"Error processing line: {e}")
+                                    print(f"NOTICE! Error processing line: {e}")
+                                finally:
+                                    window.stop_busy()
                             await asyncio.sleep(0.3) # Qt5 update_display might crash if we spam it too fast
                 except FileNotFoundError:
                     logging.error(f"Log file not found: {log_file}")
