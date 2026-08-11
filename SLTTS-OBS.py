@@ -842,7 +842,7 @@ async def monitor_log(log_file):
             else: log_changed = True
             if replay_chat and log_read and not log_changed: # when no more new chat comes in to replay switch to normal log reading
                 if not window.replay_button.cget("state") == "disabled":
-                    print("There are no more lines to speak. Stop log reading or add new lines to the chat log to be spoken.")
+                    print("NOTICE! There are no more lines to speak. Stop log reading or add new lines to the chat log to be spoken.")
                 window.chat_slider.configure(state="disabled")
                 window.replay_button.configure(state="disabled")
                 window.replay_button.configure(text = "Replay Chat", text_color="#d1d1d1")
@@ -860,7 +860,7 @@ async def monitor_log(log_file):
                         new_lines = file.readlines()
                         len_lines = len(new_lines)
                         if len_lines > 50000 and not iswarned:
-                            print("Warning: Log file is over 50,000 lines. This may cause performance issues.")
+                            print("NOTICE! Warning: Log file is over 50,000 lines. This may cause performance issues.")
                             logging.warning("Log file is over 50,000 lines. This may cause performance issues.")
                             iswarned = True
                             await asyncio.sleep(0.3)
