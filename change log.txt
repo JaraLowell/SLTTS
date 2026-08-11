@@ -1,5 +1,18 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.4"""
+
+Highlighted operational notices posted to the chat window in amber.
+
+Updated the logic for the toggle pause button.
+
+Added a setting in the config file to limit the amount of silence that can be added between paragraphs while recording, otherwise recording a log replay could have resulted in days, weeks, or months of silence being written to the mp3 file. The default value is 7200 seconds. This can be set to any number of seconds between zero (no wait between paragraphs) and what is limited by available memory.
+
+max_silence = 7200
+
+--Socrates Dionysus, 10 August 2026
+
+
 """Main changes made in version 2.0.3"""
 
 Corrected spelling error "Peplaying" to "Replaying".

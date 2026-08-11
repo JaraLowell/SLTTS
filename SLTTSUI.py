@@ -39,6 +39,7 @@ class MainWindow(ctk.CTk):
         self.text_display.tag_config("T", foreground="#a1a1a1")
         self.text_display.tag_config("B", foreground="#8080ff")
         self.text_display.tag_config("G", foreground="#80ff80")
+        self.text_display.tag_config("A", foreground="#f1da80")
         self.main_frame.rowconfigure(0, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
 
@@ -188,6 +189,9 @@ class MainWindow(ctk.CTk):
         elif 'TIMECODE! ' in message:
             message = message.replace("TIMECODE! ", "")
             self.text_display.insert("end", message + "\n", "B")
+        elif 'NOTICE! ' in message:
+            message = message.replace("NOTICE! ", "")
+            self.text_display.insert("end", message + "\n", "A")
         elif 'VERBOSE! ' in message:
             message = message.replace("VERBOSE! ", "")
             self.text_display.insert("end", message + "\n", "G")

@@ -340,6 +340,7 @@ current_player = 0
 speaker_active = []
 speakers = 3
 recording = ""
+max_silence = 3600
 
 async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), time_delta = timedelta(seconds=0), paragraph = True, test_msg = False):
     """Use Edge TTS to speak the given text."""
@@ -349,7 +350,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         EdgeVoice = VoiceOverride
 
     if not is_valid_voice_format(EdgeVoice):
-        print(f"Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
+        print(f"NOTICE! Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
         logging.error(f"Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
         EdgeVoice = "en-US-EmmaMultilingualNeural"
 
@@ -410,6 +411,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                         else: padding = time_delta.total_seconds() # record wait time between spoken paragraphs as silence
                         if verbose: print(f"VERBOSE! Seconds of padding needed {round(padding,3)}")
                         if padding >= 60:
+                            if padding > max_silence: padding = max_silence
                             minutes = int(padding / 60)
                             padding = padding%60
                             for i in range(minutes): 
@@ -439,7 +441,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                         fileout.write(f2)
                         fileout.close()
         else:
-            print(f"Output file not found: {output_file}")
+            print(f"NOTICE! Output file not found: {output_file}")
             logging.error(f"Output file not found: {log_file}")
             if not test_msg:
                 current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
@@ -648,7 +650,7 @@ async def chat_page_handler(request):
     </body>
     </html>
     """
-    print(f"Serving {filesend} to {request.remote}")
+    print(f"NOTICE! Serving {filesend} to {request.remote}")
     return web.Response(text=html_content, content_type='text/html')
 
 async def start_server():
@@ -663,8 +665,8 @@ async def start_server():
         try:
             site = web.TCPSite(runner, 'localhost', port)
             await site.start()
-            print(f"OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
-            logging.warning(f"OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
+            print(f"NOTICE! OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
+            logging.warning(f"NOTICE! OBS Page service started on http://localhost:{port} Use this URL in OBS via a browser source.")
             break
         except OSError as e:
             if e.errno == 98 or e.errno == 10048:  # Port already in use
@@ -711,7 +713,7 @@ def name_recording():
         prefix = ".\\"
     else: prefix = ""
     recording = tmp_recording
-    print(f"Audio will be recorded to {prefix}{recording} while reading chat log.")
+    print(f"NOTICE! Audio will be recorded to {prefix}{recording} while reading chat log.")
     return True
  
 async def stopped_speaking():
@@ -1288,9 +1290,9 @@ async def monitor_log(log_file):
             await asyncio.sleep(1)
     except Exception as e:
         logging.error(f"Error in monitor_log: {e}")
-        print(f"Error while monitoring log file: {e}")
+        print(f"NOTICE! Error while monitoring log file: {e}")
     finally:
-        print("Stopped monitoring log file.")
+        print("NOTICE! Stopped monitoring log file.")
         window.chat_position_label.configure(text=f"Position in Chat Log File: 0.0%")
         window.chat_slider.set(0)
         shut_down_monitoring()
@@ -1305,12 +1307,12 @@ def update_global(variable_name, value):
         toprint = ''
         for item in value:
             toprint += item.strip() + ', '
-        print(f"Updated Speak Only List: {toprint[:-2]}")
+        print(f"NOTICE! Updated Speak Only List: {toprint[:-2]}")
     if variable_name == "IgnoreList":
         toprint = ''
         for item in value:
             toprint += item.strip() + ', '
-        print(f"Updated Ignore List: {toprint[:-2]}")
+        print(f"NOTICE! Updated Ignore List: {toprint[:-2]}")
     if variable_name == "Enable_Spelling_Check":
         window.global_config.set('Settings', 'enable_spelling_check', str(value))
         message = "Grammar tool and spellchecker check enabled." if value else "Grammar tool and spellchecker check disabled."
@@ -1322,7 +1324,7 @@ def update_global(variable_name, value):
     if variable_name == "OBSChatFiltered":
         window.global_config.set('Settings', 'obs_chat_filtered', str(value))
         status = "enabled" if value else "disabled"
-        print(f"Unfiltered or corrected chat to OBS page {status}.")
+        print(f"NOTICE! Unfiltered or corrected chat to OBS page {status}.")
         if value:
             window.obs_filter_button.configure(text="Toggle OBS Chat Filter", text_color="#80ff80")
         else:
@@ -1353,7 +1355,7 @@ def set_audio_device(selected_device):
     global play_volume, pygame
     pygame.mixer.quit()  # Quit the mixer to reinitialize with the new device
     pygame.mixer.init(devicename=selected_device)
-    print(f"Audio device set to: {selected_device}")
+    print(f"NOTICE! Audio device set to: {selected_device}")
     pygame.mixer.music.set_volume(play_volume)
 
 def update_minchar(value, window=None):
@@ -1402,7 +1404,7 @@ def start_monitoring(log_file_path):
 
     monitor_task = monitor_loop.create_task(monitor_log(log_file_path))
     threading.Thread(target=monitor_loop.run_forever, daemon=True).start()
-    print(f"Started monitoring log file: {log_file_path}")
+    print(f"NOTICE! Started monitoring log file: {log_file_path}")
 
 def stop_monitoring():
     """Request to stop the monitor_log task safely."""
@@ -1485,6 +1487,7 @@ if __name__ == "__main__":
     verbose = config.getint('Settings', 'verbose', fallback=0)
     record_directory = config.get('Settings', 'record_directory', fallback='Recordings')
     custom_reader = config.getint('Settings', 'custom_reader', fallback=0)
+    max_silence = config.getint('Settings', 'max_silence', fallback=7200)
     # all_voices = asyncio.run(get_voices()) # Fetch all voices
 
     update_volume(config.getint('Settings', 'volume', fallback=75))
@@ -1509,16 +1512,16 @@ if __name__ == "__main__":
             readloop = True
             slang_replacements = load_slang_replacements("slangreplce.json")
             if slang_replacements:
-                print(f"Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
+                print(f"NOTICE! Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
             name2voice = load_slang_replacements("name2voice.json")
             if name2voice:
-                print(f"Name to voice file reading done, {len(name2voice)} replacements found and loaded.")
+                print(f"NOTICE! Name to voice file reading done, {len(name2voice)} replacements found and loaded.")
             chat_messages.clear()
             start_monitoring(log_file_path)
             window.start_button.configure(text="Stop Log Reading", text_color="#ff8080")
         else:
             logging.error(f"Chat Log file not found: {log_file_path}")
-            print(f"Chat Log file not found: {log_file_path}")
+            print(f"NOTICE! Chat Log file not found: {log_file_path}")
 
     def stop_monitoring_ui():
         """Stop monitoring from the UI."""
@@ -1553,13 +1556,13 @@ if __name__ == "__main__":
             record = 0
             rec_init = False
             window.record_button.configure(text = "Record Audio", text_color="#d1d1d1")
-            print(f"Stopped recording to file: {recording}")
+            print(f"NOTICE! Stopped recording to file: {recording}")
             
     def toggle_replay():
         """Toggle replay chat log based on the button state."""
         global replay_chat, readloop, request, paused
         if window.replay_button.cget("text") == "Replay Chat":
-            if not paused: print(f"Replaying chat from start of Chat Log file.")
+            if not paused: print(f"NOTICE! Replaying chat from start of Chat Log file.")
             window.replay_button.configure(text = "Stop Replay", text_color="#ff8080")
             window.quick_button.configure(state="normal")
             window.chat_slider.configure(state="normal")
@@ -1571,7 +1574,7 @@ if __name__ == "__main__":
             window.replay_button.configure(text = "Replay Chat", text_color="#d1d1d1")
             window.quick_button.configure(state="disabled")
             window.chat_slider.configure(state="disabled")
-            print(f"Stopped replaying chat from Chat Log file.")
+            print(f"NOTICE! Stopped replaying chat from Chat Log file.")
     
     def open_file():
         """Open SL Chat Log File"""
@@ -1596,9 +1599,9 @@ if __name__ == "__main__":
     
     def toggle_pause():
         """Toggle pause reading chat log based on the button state."""
-        global paused, request, replay_chat, reedloop, stamp_read
+        global paused, request, replay_chat, stamp_read
         if window.pause_button.cget("text") == "\u23f8" and not request: # pause symbol
-            print(f"Pausing log reading.")
+            print(f"NOTICE! Pausing log reading.")
             window.pause_button.configure(text = "\u25b6", text_color="#ff8080") # set play symbol
             paused = 1
             window.quick_button.configure(state="normal")
@@ -1607,7 +1610,8 @@ if __name__ == "__main__":
             paused = 0
             stamp_read = False
             window.pause_button.configure(text = "\u23f8", text_color="#d1d1d1") # set pause symbol
-            print(f"Unpausing log reading.")
+            if not readloop and not replay_chat: window.quick_button.configure(state="disabled")
+            print(f"NOTICE! Unpausing log reading.")
     
     def on_release(value):
         global file_position, line_changed
@@ -1654,7 +1658,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.3, by Jara Lowell")
+    print("Second Life Chat log to Speech version 2.0.4, by Jara Lowell")
     
     if record == True:
         toggle_recording()
