@@ -1,5 +1,16 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.6"""
+
+Added a 30-second timeout on the Edge TTS network call so a stalled connection no longer silently blocks the speaker slot indefinitely.
+
+Added a check after TTS generation: if the output file is missing or empty the slot is released immediately and a notice is printed, instead of passing a corrupt file to pygame.
+
+Added silent-failure recovery for pygame: if playback does not start after a play() call (get_busy returns False but the file has content), the mixer is reinitialised automatically and playback is retried.
+
+--Jara Lowell, Socrates Dionysus, 11 August 2026
+
+
 """Main changes made in version 2.0.5"""
 
 Merged the main branch with the dev branch. The main branch is now ahead of dev.

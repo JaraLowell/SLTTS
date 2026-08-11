@@ -502,9 +502,21 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             _rate = f'+{interp}%'
 
         try:
-            await Communicate(text = text2say, voice=EdgeVoice, rate = _rate, pitch = '+0Hz').save(output_file)
+            await asyncio.wait_for(
+                Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch='+0Hz').save(output_file),
+                timeout=30.0
+            )
+        except asyncio.TimeoutError:
+            logging.error(f"Edge TTS timed out after 30s. Text to say: {text2say}")
+            print(f"NOTICE! Edge TTS timed out generating audio for: {text2say[:60]}")
+            return
         except Exception as e:
             logging.error(f"Error generating audio: {e} Text to say: {text2say}")
+            return
+
+        if not os.path.exists(output_file) or os.path.getsize(output_file) == 0:
+            logging.error(f"Edge TTS produced an empty or missing file. Text to say: {text2say}")
+            print(f"NOTICE! Edge TTS produced no audio for: {text2say[:60]}")
             return
 
         # Wait to play or record output file in the right order over multiple threads
@@ -576,6 +588,19 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         duration = round(size/144 * 0.024,3) # total duration of mp3 recording so far, rounded to correct maths errors since the result can only contain 3 decimel figures
         timeout = 60 + duration # maximum wait time in seconds
         elapsed = 0
+        await asyncio.sleep(0.05) # brief yield so pygame can register the play() call
+        if not pygame.mixer.music.get_busy() and size > 0:
+            logging.error(f"pygame did not start playback (silent failure). Reinitialising mixer. File: {output_file} Size: {size}")
+            print(f"NOTICE! Audio playback did not start — reinitialising pygame mixer.")
+            try:
+                pygame.mixer.quit()
+                pygame.mixer.init()
+                pygame.mixer.music.set_volume(play_volume)
+                pygame.mixer.music.load(output_file)
+                pygame.mixer.music.play()
+                await asyncio.sleep(0.05)
+            except Exception as reinit_e:
+                logging.error(f"pygame reinit failed: {reinit_e}")
         while pygame.mixer.music.get_busy() and elapsed < timeout:
             #pygame.time.Clock().tick(10) # Not thread safe so use sleep instead
             await asyncio.sleep(0.1)
