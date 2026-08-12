@@ -1,5 +1,12 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.7.1"""
+
+If EdgeTTS fails to complete rendering text to speech the output file may still be locked. SLTTS will now attempt to unlock and delete it to free up the thread. The speak_text function may not be returning correctly after this error so code has been added to prevent issues.
+
+--Socrates Dionysus, 12 August 2026
+
+
 """Main changes made in version 2.0.7"""
 
 Fixed the ticker not ticking when a message is being spoken.
