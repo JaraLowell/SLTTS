@@ -1,5 +1,18 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.7"""
+
+Fixed the ticker not ticking when a message is being spoken.
+
+Added a timeout for how long to wait for EdgeTTS to provide an output file in case EdgeTTS fails to respond
+
+edge_tts_timeout = 45
+
+Prevented more than one instance of SLTTS from being launched at the same time as another instance is running from the same folder. The user can choose to allow a new instance to run but this is inadvisable since it can overwrite files and freeze the read loop.
+
+--Socrates Dionysus, 12 August 2026
+
+
 """Main changes made in version 2.0.5"""
 
 Merged the main branch with the dev branch. The main branch is now ahead of dev.
