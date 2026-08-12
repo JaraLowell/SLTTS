@@ -440,6 +440,8 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
     """Use Edge TTS to speak the given text."""
     global EdgeVoice, window, current_player, speaker_active, speakers, follow_timestamps, record, replay_chat, verbose
     
+    com_error_flag = False
+    
     if VoiceOverride is not None:
         EdgeVoice = VoiceOverride
 
@@ -470,19 +472,30 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             await asyncio.wait_for(Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch='+0Hz').save(output_file), timeout=edge_tts_timeout)
         except Exception as e:
             logging.error(f"Error generating audio: {e} Text to say: {text2say}")
+            try:
+                os.remove(output_file)
+            except PermissionError:
+                if sys.platform == 'darwin':
+                    os.system('chflags nouchg {}'.format(output_file))
+                    os.remove(output_file)          
             if not test_msg:
                 # Wait for other concurrent threads to give way to play each output file in the right order
+                """VOLATILE CODE: DO NOT MOVE OR ALTER IN ANY WAY"""
                 while local_file_counter != globals()["current_player"]:
                     await asyncio.sleep(0.25)
                 current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
                 speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+                """END VOLATILE CODE"""
+                com_error_flag = True
             return
 
+        """VOLATILE CODE: DO NOT MOVE OR ALTER IN ANY WAY"""
         # Wait to play or record output file in the right order over multiple threads
         if not test_msg:
             while local_file_counter != globals()["current_player"]:
                 await asyncio.sleep(0.25)
-
+        """END VOLATILE CODE"""
+        
         # Play the audio file
         window.start_busy()
         if os.path.exists(output_file):
@@ -562,13 +575,17 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         pygame.mixer.music.stop()
         pygame.mixer.music.unload()
 
+    if com_error_flag:
+        print("NOTICE! Error creating EdgeTTS audio file.")
     # When output file stops playing
-    if not test_msg:
+    if not test_msg and not com_error_flag:
         if paragraph and not (record and replay_chat): 
             await asyncio.sleep(0.24) # add padding between paragraphs unless recording since recording a replay takes place without reading
         window.stop_busy()
+        """VOLATILE CODE: DO NOT MOVE OR ALTER IN ANY WAY"""
         current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
         speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+        """END VOLATILE CODE"""
         await asyncio.sleep(0.25) # give time for cleanup
 
 # List to store chat messages for the website
@@ -1813,7 +1830,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.7, by Jara Lowell")
+    print("Second Life Chat log to Speech version 2.0.7.1, by Jara Lowell")
     
     if record == True:
         toggle_recording()
