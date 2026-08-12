@@ -12,6 +12,7 @@ import asyncio
 import time
 import pygame
 import regex as re
+import edge_tts
 from edge_tts import Communicate
 from edge_tts import list_voices
 import unicodedata
@@ -467,24 +468,38 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             interp = round(min_rate + (max_rate - min_rate) * (text_len - min_len) / (max_len - min_len))
             _rate = f'+{interp}%'
 
+        err_msg = None
         try:
             #await Communicate(text = text2say, voice=EdgeVoice, rate = _rate, pitch = '+0Hz').save(output_file)
             await asyncio.wait_for(Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch='+0Hz').save(output_file), timeout=edge_tts_timeout)
+        except asyncio.TimeoutError:
+            err_msg = f"Timeout after {edge_tts_timeout}s — TTS did not finish in time"
+        except edge_tts.exceptions.NoAudioReceived as e:
+            err_msg = f"No audio from Microsoft TTS: {e}"
         except Exception as e:
-            logging.error(f"Error generating audio: {e} Text to say: {text2say}")
+            # str(e) is often empty for some errors; type name always helps
+            err_msg = f"{type(e).__name__}: {e or '(no message)'}"
+
+        # Catches “silent” failures where save() returns but file is empty/tiny
+        # if err_msg is None and os.path.exists(output_file) and os.path.getsize(output_file) < 512:
+        #     err_msg = f"Output file too small ({os.path.getsize(output_file)} bytes) — likely empty/corrupt TTS response"
+
+        if err_msg:
+            print(f"Error {err_msg} for text: {text2say}")
+            logging.error(f"Error {err_msg} for text: {text2say}")
             try:
                 os.remove(output_file)
             except PermissionError:
                 if sys.platform == 'darwin':
                     os.system('chflags nouchg {}'.format(output_file))
-                    os.remove(output_file)          
+                    os.remove(output_file)
+
             if not test_msg:
-                # Wait for other concurrent threads to give way to play each output file in the right order
                 """VOLATILE CODE: DO NOT MOVE OR ALTER IN ANY WAY"""
                 while local_file_counter != globals()["current_player"]:
                     await asyncio.sleep(0.25)
-                current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
-                speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+                current_player = (current_player + 1) % speakers
+                speaker_active[local_file_counter] = 0
                 """END VOLATILE CODE"""
                 com_error_flag = True
             return
