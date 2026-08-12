@@ -26,6 +26,7 @@ import threading
 import builtins
 import shutil
 from tkinter import filedialog
+from tkinter import messagebox
 
 import emoji
 """
@@ -62,10 +63,11 @@ readloop = False
 play_volume = 0.75  # Default volume
 min_char = 2  # Default minimum characters
 verbose = 0
-edge_tts_timeout = 45  # Max seconds to wait for Edge TTS network response
 slang_patterns = []
 slang_exact_lookup = {}
 name2voice_lookup = {}
+primary_instance = True
+edge_tts_timeout = 45
 
 def normalize_text(value):
     """Normalize text for consistent Unicode handling across files and runtime input."""
@@ -411,7 +413,8 @@ def create_default_config(file_path):
             'edge_tts_llm': 'en-US-AndrewMultilingualNeural, en-US-EmmaMultilingualNeural',
             'concurrent_edge_tts_threads': '3',
             'edge_tts_timeout': '45',
-            'replay_chat': '0'
+            'replay_chat': '0',
+            'follow_timestamps': '1'
         }
         with open(file_path, 'w') as config_file:
             config.write(config_file)
@@ -435,7 +438,7 @@ max_silence = 3600
 
 async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), time_delta = timedelta(seconds=0), paragraph = True, test_msg = False):
     """Use Edge TTS to speak the given text."""
-    global EdgeVoice, window, current_player, speaker_active, speakers, follow_timestamps, record, replay_chat, verbose, edge_tts_timeout
+    global EdgeVoice, window, current_player, speaker_active, speakers, follow_timestamps, record, replay_chat, verbose
     
     if VoiceOverride is not None:
         EdgeVoice = VoiceOverride
@@ -445,16 +448,10 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         logging.error(f"Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
         EdgeVoice = "en-US-EmmaMultilingualNeural"
 
-    output_file = f"output{local_file_counter}.mp3"
-    got_turn = False
-    played_audio = False
-
-    async def wait_for_turn():
-        """Wait for this worker's playback turn without breaking ordering guarantees."""
-        while local_file_counter != current_player:
-            await asyncio.sleep(0.25)
-
     try:
+        # Generate and save the audio file
+        output_file = f"output{local_file_counter}.mp3"
+
         # Dynamically adjust the rate based on text length
         min_len, max_len = 64, 384
         min_rate, max_rate = 1, 8
@@ -469,29 +466,29 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             _rate = f'+{interp}%'
 
         try:
-            await asyncio.wait_for(
-                Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch='+0Hz').save(output_file),
-                timeout=edge_tts_timeout,
-            )
-        except asyncio.TimeoutError:
-            logging.error(f"Edge TTS timeout after {edge_tts_timeout}s. Text to say: {text2say}")
-            print(f"NOTICE! Edge TTS request timed out after {edge_tts_timeout}s. Skipping line.")
-            return
+            #await Communicate(text = text2say, voice=EdgeVoice, rate = _rate, pitch = '+0Hz').save(output_file)
+            await asyncio.wait_for(Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch='+0Hz').save(output_file), timeout=edge_tts_timeout)
         except Exception as e:
             logging.error(f"Error generating audio: {e} Text to say: {text2say}")
+            if not test_msg:
+                # Wait for other concurrent threads to give way to play each output file in the right order
+                while local_file_counter != globals()["current_player"]:
+                    await asyncio.sleep(0.25)
+                current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
+                speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
             return
 
         # Wait to play or record output file in the right order over multiple threads
         if not test_msg:
-            await wait_for_turn()
-            got_turn = True
+            while local_file_counter != globals()["current_player"]:
+                await asyncio.sleep(0.25)
 
         # Play the audio file
+        window.start_busy()
         if os.path.exists(output_file):
             if not replay_chat or not record: # record but don't read text aloud for speed
                 pygame.mixer.music.load(output_file)
                 pygame.mixer.music.play()
-                played_audio = True
             if not test_msg:
                 # Record audio output
                 if record:
@@ -510,13 +507,13 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                         else: padding = time_delta.total_seconds() # record wait time between spoken paragraphs as silence
                         if verbose: print(f"VERBOSE! Seconds of padding needed {round(padding,3)}")
                         if padding >= 60:
-                            if padding > max_silence: padding = max_silence
+                            if padding > max_silence: padding = 0
                             minutes = int(padding / 60)
                             padding = padding%60
-                            for i in range(minutes):
+                            for i in range(minutes): 
                                 with open('silence.mp3', 'rb') as f2, open(local_rec, 'ab') as f1:
                                     shutil.copyfileobj(f2, f1)
-                        if padding > 0:
+                        if padding > 0:                 
                             with open("silence.mp3", 'rb') as file1:
                                 silence = file1.read()
                             frames = int(padding/0.024 + 0.5) # number of frames needed where each frame is 0.024s
@@ -525,7 +522,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                             f2 = silence[:bytes2write]
                             fileout = open(local_rec, 'ab')
                             fileout.write(f2)
-                            fileout.close()
+                            fileout.close()             
                     # append mp3 tts file to recording
                     with open(output_file, 'rb') as f2, open(local_rec, 'ab') as f1:
                         shutil.copyfileobj(f2, f1)
@@ -542,39 +539,37 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         else:
             print(f"NOTICE! Output file not found: {output_file}")
             logging.error(f"Output file not found: {output_file}")
+            if not test_msg:
+                current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
+                speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+                await asyncio.sleep(0.25)
             return
 
         # Wait for playback to finish with timeout
-        if played_audio and os.path.exists(output_file):
+        if os.path.exists(output_file):
             size = os.path.getsize(output_file)
-            duration = round(size/144 * 0.024,3) # total duration of mp3 recording so far, rounded to correct maths errors since the result can only contain 3 decimel figures
-            timeout = 60 + duration # maximum wait time in seconds
-            elapsed = 0
-            while pygame.mixer.music.get_busy() and elapsed < timeout:
-                #pygame.time.Clock().tick(10) # Not thread safe so use sleep instead
-                await asyncio.sleep(0.1)
-                elapsed += 0.1
+        else: size = 0
+        duration = round(size/144 * 0.024,3) # total duration of mp3 recording so far, rounded to correct maths errors since the result can only contain 3 decimel figures
+        timeout = 60 + duration # maximum wait time in seconds
+        elapsed = 0
+        while pygame.mixer.music.get_busy() and elapsed < timeout:
+            #pygame.time.Clock().tick(10) # Not thread safe so use sleep instead
+            await asyncio.sleep(0.1)
+            elapsed += 0.1
 
     finally:
-        # Clean up playback state without letting cleanup exceptions break worker release.
-        try:
-            pygame.mixer.music.stop()
-            pygame.mixer.music.unload()
-        except Exception as e:
-            logging.error(f"Error during mixer cleanup: {e}")
+        # Clean up and reset the flag
+        pygame.mixer.music.stop()
+        pygame.mixer.music.unload()
 
-        # Always release worker slot so one failed API call cannot deadlock all workers.
-        if not test_msg:
-            try:
-                if not got_turn:
-                    await wait_for_turn()
-                if played_audio and paragraph and not (record and replay_chat):
-                    await asyncio.sleep(0.24) # add padding between paragraphs unless recording since recording a replay takes place without reading
-                current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
-                speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
-                await asyncio.sleep(0.25) # give time for cleanup
-            except Exception as e:
-                logging.error(f"Error releasing worker {local_file_counter}: {e}")
+    # When output file stops playing
+    if not test_msg:
+        if paragraph and not (record and replay_chat): 
+            await asyncio.sleep(0.24) # add padding between paragraphs unless recording since recording a replay takes place without reading
+        window.stop_busy()
+        current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
+        speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+        await asyncio.sleep(0.25) # give time for cleanup
 
 # List to store chat messages for the website
 chat_messages = []
@@ -916,7 +911,7 @@ async def monitor_log(log_file):
                 await stopped_speaking()
                 replay_chat = False
                 log_read = False
-                window.stop_busy()
+                #window.stop_busy()
             if log_changed or replay_chat:
                 last_mod_time = current_mod_time
                 # Reopen the file to ensure we get the latest data
@@ -954,7 +949,7 @@ async def monitor_log(log_file):
                             if line:
                                 # Process the line (existing logic)
                                 try:
-                                    window.start_busy()
+                                    #window.start_busy()
                                     if paused:
                                         while paused:
                                             if request: # request made to stop monitoring
@@ -1374,7 +1369,7 @@ async def monitor_log(log_file):
                                                     else: paragraph = False # first sentance in split paragraph so no delay between sentances but delay between this and the last paragraph in recording
                                                     speaker_active[output_file_counter] = 1
                                                     task1[output_file_counter] = asyncio.create_task(speak_text(message, last_voice, output_file_counter, chat_delta, time_delta, paragraph))
-                                                    if speakers == 1: await task1[output_file_counter] # legacy behaviour
+                                                    if speakers == 1: await [output_file_counter] # legacy behaviour
                                                     # Rotate to next output file
                                                     output_file_counter = (output_file_counter + 1) % speakers
                                     else:
@@ -1392,8 +1387,8 @@ async def monitor_log(log_file):
                                 except Exception as e:
                                     logging.error(f"Error processing line: {e}")
                                     print(f"NOTICE! Error processing line: {e}")
-                                finally:
-                                    window.stop_busy()
+                                #finally:
+                                #    window.stop_busy()
                             await asyncio.sleep(0.3) # Qt5 update_display might crash if we spam it too fast
                 except FileNotFoundError:
                     logging.error(f"Log file not found: {log_file}")
@@ -1587,6 +1582,15 @@ async def speak_test_message():
     await task0
 
 if __name__ == "__main__":
+    if os.path.exists("SLTTS.lock"): # Check if an instance of SLTTS already exists
+        if not messagebox.askokcancel("Warning", "An instance of SLTTS is already running. Proceed?"):
+            sys.exit()
+        else: primary_instance = False
+ 
+    if primary_instance:
+        with open("SLTTS.lock", "a") as f:
+            f.write("LOCKED TO ONE INSANCE!") # Lock to only once instance of the programme in the same directory
+        
     if create_default_config('config.ini'):
         logging.error("Default config.ini created. Please edit it with your settings.")
         sys.exit(0)
@@ -1809,7 +1813,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.5, by Jara Lowell")
+    print("Second Life Chat log to Speech version 2.0.7, by Jara Lowell")
     
     if record == True:
         toggle_recording()
@@ -1821,9 +1825,13 @@ if __name__ == "__main__":
         
     if follow_timestamps == False:
         toggle_quick_play()
-    
+
     # Start the window application event loop
     try:
         window.mainloop()
     except Exception as e:
         logging.error(f"Error in main loop: {e}")
+    finally: 
+        if primary_instance:
+            os.remove("SLTTS.lock") # Remove the lock
+        
