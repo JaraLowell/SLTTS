@@ -34,6 +34,7 @@ edge_tts_llm = en-US-EmmaMultilingualNeural
 ignore_list = zcs, gm
 obs_chat_filtered = True
 concurrent_edge_tts_threads = 3
+edge_tts_timeout = 45
 replay_chat = 0
 follow_timestamps = 1
 ```
@@ -53,6 +54,8 @@ follow_timestamps = 1
   - Pass the original chat to obs or the adjusrted one (True or False)
 * concurrent_edge_tts_threads
   - Convert the text to speech in up to 12 concurrent threads to read aloud multiple lines from the chat log without long gaps between them. Values from 2 to 3 should be sufficieant.
+* edge_tts_timeout
+  - Maximum seconds to wait for each Edge TTS request before skipping that line. This prevents one stalled request from blocking all concurrent TTS workers. Default is 45, allowed range is 10 to 300.
 * replay_chat
   - Replay any selected chat log using the default voices or new voices assigned to each avatar. This fuction can be used to redub videos of Second Life events such as roleplay or the narration of dance troupe performancers or to add new narration. The default value is 0 which selects legacy behaviour. To replay the log set the value in the config file to 1 and restart the app
 * follow_timestamps

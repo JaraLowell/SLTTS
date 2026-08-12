@@ -579,6 +579,7 @@ class MainWindow(ctk.CTk):
             'min_char': '2',
             'speak_only_list': '',
             'concurrent_edge_tts_threads': '3',
+            'edge_tts_timeout': '45',
             'replay_chat': '0',
             'follow_timestamps': '1',
             'record': '0',
