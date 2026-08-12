@@ -1280,7 +1280,7 @@ async def monitor_log(log_file):
                                             if follow_timestamps and (replay_chat or record):
                                                 # convert custom timestamp to a datetime object used by Python
                                                 date_time = timestamp.replace("/","-")
-                                                if len(date_time) is 12:
+                                                if len(date_time) == 12:
                                                     date_format = "1970-01-01 %H:%M:%S.%f"
                                                 try:
                                                     date_time = "1970-01-01 " + date_time
