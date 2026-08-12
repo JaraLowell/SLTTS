@@ -431,45 +431,6 @@ speakers = 3
 recording = ""
 max_silence = 3600
 
-def release_speaker_slot(current_player, speaker_active, speakers, local_file_counter):
-    """Advance the speaker turn and clear the given slot."""
-    if speakers <= 0:
-        return current_player
-
-    if local_file_counter >= len(speaker_active):
-        speaker_active.extend([0] * (local_file_counter + 1 - len(speaker_active)))
-
-    speaker_active[local_file_counter] = 0
-    return (current_player + 1) % speakers
-
-async def finalize_speaker_slot(local_file_counter, timeout_seconds=30.0):
-    """Release a speaker slot even if playback failed unexpectedly.
-
-    Wait briefly for turn order; if that never arrives, force-skip to prevent
-    deadlocking the monitor loop and stop action.
-    """
-    global current_player, speaker_active, speakers
-
-    if speakers <= 0:
-        return
-
-    waited = 0.0
-    while local_file_counter != current_player and waited < timeout_seconds:
-        await asyncio.sleep(0.25)
-        waited += 0.25
-
-    if local_file_counter == current_player:
-        current_player = release_speaker_slot(current_player, speaker_active, speakers, local_file_counter)
-        return
-
-    logging.error(
-        f"Timeout waiting for speaker slot {local_file_counter} turn; forcing slot release to avoid deadlock."
-    )
-    if local_file_counter >= len(speaker_active):
-        speaker_active.extend([0] * (local_file_counter + 1 - len(speaker_active)))
-    speaker_active[local_file_counter] = 0
-    current_player = (local_file_counter + 1) % speakers
-
 async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), time_delta = timedelta(seconds=0), paragraph = True, test_msg = False):
     """Use Edge TTS to speak the given text."""
     global EdgeVoice, window, current_player, speaker_active, speakers, follow_timestamps, record, replay_chat, verbose
@@ -481,8 +442,6 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         print(f"NOTICE! Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
         logging.error(f"Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
         EdgeVoice = "en-US-EmmaMultilingualNeural"
-
-    playback_completed = False
 
     try:
         # Generate and save the audio file
@@ -502,21 +461,15 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             _rate = f'+{interp}%'
 
         try:
-            await asyncio.wait_for(
-                Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch='+0Hz').save(output_file),
-                timeout=30.0
-            )
-        except asyncio.TimeoutError:
-            logging.error(f"Edge TTS timed out after 30s. Text to say: {text2say}")
-            print(f"NOTICE! Edge TTS timed out generating audio for: {text2say[:60]}")
-            return
+            await Communicate(text = text2say, voice=EdgeVoice, rate = _rate, pitch = '+0Hz').save(output_file)
         except Exception as e:
             logging.error(f"Error generating audio: {e} Text to say: {text2say}")
-            return
-
-        if not os.path.exists(output_file) or os.path.getsize(output_file) == 0:
-            logging.error(f"Edge TTS produced an empty or missing file. Text to say: {text2say}")
-            print(f"NOTICE! Edge TTS produced no audio for: {text2say[:60]}")
+            if not test_msg:
+                # Wait for other concurrent threads to give way to play each output file in the right order
+                while local_file_counter != globals()["current_player"]:
+                    await asyncio.sleep(0.25)
+                current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
+                speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
             return
 
         # Wait to play or record output file in the right order over multiple threads
@@ -579,6 +532,10 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         else:
             print(f"NOTICE! Output file not found: {output_file}")
             logging.error(f"Output file not found: {output_file}")
+            if not test_msg:
+                current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
+                speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+                await asyncio.sleep(0.25)
             return
 
         # Wait for playback to finish with timeout
@@ -588,43 +545,23 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         duration = round(size/144 * 0.024,3) # total duration of mp3 recording so far, rounded to correct maths errors since the result can only contain 3 decimel figures
         timeout = 60 + duration # maximum wait time in seconds
         elapsed = 0
-        await asyncio.sleep(0.05) # brief yield so pygame can register the play() call
-        if not pygame.mixer.music.get_busy() and size > 0:
-            logging.error(f"pygame did not start playback (silent failure). Reinitialising mixer. File: {output_file} Size: {size}")
-            print(f"NOTICE! Audio playback did not start — reinitialising pygame mixer.")
-            try:
-                pygame.mixer.quit()
-                pygame.mixer.init()
-                pygame.mixer.music.set_volume(play_volume)
-                pygame.mixer.music.load(output_file)
-                pygame.mixer.music.play()
-                await asyncio.sleep(0.05)
-            except Exception as reinit_e:
-                logging.error(f"pygame reinit failed: {reinit_e}")
         while pygame.mixer.music.get_busy() and elapsed < timeout:
             #pygame.time.Clock().tick(10) # Not thread safe so use sleep instead
             await asyncio.sleep(0.1)
             elapsed += 0.1
 
-        playback_completed = True
-
-    except Exception as e:
-        logging.error(f"Unexpected error in speak_text: {e} Text to say: {text2say}")
-
     finally:
         # Clean up and reset the flag
-        try:
-            pygame.mixer.music.stop()
-            pygame.mixer.music.unload()
-        except Exception as e:
-            logging.error(f"Error cleaning up pygame mixer state: {e}")
+        pygame.mixer.music.stop()
+        pygame.mixer.music.unload()
 
-        # Always release speaker slot; otherwise monitor/stop can deadlock.
-        if not test_msg:
-            if playback_completed and paragraph and not (record and replay_chat):
-                await asyncio.sleep(0.24) # add padding between paragraphs unless recording since recording a replay takes place without reading
-            await finalize_speaker_slot(local_file_counter)
-            await asyncio.sleep(0.25) # give time for cleanup
+    # When output file stops playing
+    if not test_msg:
+        if paragraph and not (record and replay_chat): 
+            await asyncio.sleep(0.24) # add padding between paragraphs unless recording since recording a replay takes place without reading
+        current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
+        speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+        await asyncio.sleep(0.25) # give time for cleanup
 
 # List to store chat messages for the website
 chat_messages = []
@@ -1318,7 +1255,7 @@ async def monitor_log(log_file):
                                             if follow_timestamps and (replay_chat or record):
                                                 # convert custom timestamp to a datetime object used by Python
                                                 date_time = timestamp.replace("/","-")
-                                                if len(date_time) == 12:
+                                                if len(date_time) is 12:
                                                     date_format = "1970-01-01 %H:%M:%S.%f"
                                                 try:
                                                     date_time = "1970-01-01 " + date_time
