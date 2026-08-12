@@ -449,17 +449,9 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
     got_turn = False
     played_audio = False
 
-    async def wait_for_turn(max_wait=120):
-        """Wait for this worker's playback turn, then recover if scheduler desyncs."""
-        global current_player
-        start_wait = time.monotonic()
+    async def wait_for_turn():
+        """Wait for this worker's playback turn without breaking ordering guarantees."""
         while local_file_counter != current_player:
-            if (time.monotonic() - start_wait) >= max_wait:
-                logging.error(
-                    f"Turn wait timeout in worker {local_file_counter}; forcing scheduler to recover from current_player={current_player}."
-                )
-                current_player = local_file_counter
-                break
             await asyncio.sleep(0.25)
 
     try:
@@ -491,7 +483,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
 
         # Wait to play or record output file in the right order over multiple threads
         if not test_msg:
-            await wait_for_turn(max_wait=max(120, edge_tts_timeout + 30))
+            await wait_for_turn()
             got_turn = True
 
         # Play the audio file
@@ -575,7 +567,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         if not test_msg:
             try:
                 if not got_turn:
-                    await wait_for_turn(max_wait=max(120, edge_tts_timeout + 30))
+                    await wait_for_turn()
                 if played_audio and paragraph and not (record and replay_chat):
                     await asyncio.sleep(0.24) # add padding between paragraphs unless recording since recording a replay takes place without reading
                 current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
