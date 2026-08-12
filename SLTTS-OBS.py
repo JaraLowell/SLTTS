@@ -473,9 +473,6 @@ async def finalize_speaker_slot(local_file_counter, timeout_seconds=30.0):
 async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), time_delta = timedelta(seconds=0), paragraph = True, test_msg = False):
     """Use Edge TTS to speak the given text."""
     global EdgeVoice, window, current_player, speaker_active, speakers, follow_timestamps, record, replay_chat, verbose
-
-    if not test_msg:
-        window.start_busy()
     
     if VoiceOverride is not None:
         EdgeVoice = VoiceOverride
@@ -628,7 +625,6 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                 await asyncio.sleep(0.24) # add padding between paragraphs unless recording since recording a replay takes place without reading
             await finalize_speaker_slot(local_file_counter)
             await asyncio.sleep(0.25) # give time for cleanup
-            window.stop_busy()
 
 # List to store chat messages for the website
 chat_messages = []
