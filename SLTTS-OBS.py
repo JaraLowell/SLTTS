@@ -9,6 +9,7 @@ logging.basicConfig(filename='sltts.log', level=logging.DEBUG, format='%(asctime
 logging.error("Starting Up")
 
 import asyncio
+import io
 import time
 import pygame
 import regex as re
@@ -442,6 +443,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
     global EdgeVoice, window, current_player, speaker_active, speakers, follow_timestamps, record, replay_chat, verbose
     
     com_error_flag = False
+    audio_buf = None
     
     if VoiceOverride is not None:
         EdgeVoice = VoiceOverride
@@ -452,9 +454,6 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         EdgeVoice = "en-US-EmmaMultilingualNeural"
 
     try:
-        # Generate and save the audio file
-        output_file = f"output{local_file_counter}.mp3"
-
         # Dynamically adjust the rate based on text length
         min_len, max_len = 64, 384
         min_rate, max_rate = 1, 8
@@ -469,9 +468,18 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             _rate = f'+{interp}%'
 
         err_msg = None
+        audio_data = b""
         try:
-            #await Communicate(text = text2say, voice=EdgeVoice, rate = _rate, pitch = '+0Hz').save(output_file)
-            await asyncio.wait_for(Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch='+0Hz').save(output_file), timeout=edge_tts_timeout)
+            async def _tts_bytes():
+                chunks = bytearray()
+                communicate = Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch='+0Hz')
+                async for message in communicate.stream():
+                    if message["type"] == "audio":
+                        chunks.extend(message["data"])
+                return bytes(chunks)
+            audio_data = await asyncio.wait_for(_tts_bytes(), timeout=edge_tts_timeout)
+            if not audio_data:
+                err_msg = "No audio from Microsoft TTS: empty stream"
         except asyncio.TimeoutError:
             err_msg = f"Timeout after {edge_tts_timeout}s — TTS did not finish in time"
         except edge_tts.exceptions.NoAudioReceived as e:
@@ -480,19 +488,9 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             # str(e) is often empty for some errors; type name always helps
             err_msg = f"{type(e).__name__}: {e or '(no message)'}"
 
-        # Catches “silent” failures where save() returns but file is empty/tiny
-        # if err_msg is None and os.path.exists(output_file) and os.path.getsize(output_file) < 512:
-        #     err_msg = f"Output file too small ({os.path.getsize(output_file)} bytes) — likely empty/corrupt TTS response"
-
         if err_msg:
             print(f"Error {err_msg} for text: {text2say}")
             logging.error(f"Error {err_msg} for text: {text2say}")
-            try:
-                os.remove(output_file)
-            except PermissionError:
-                if sys.platform == 'darwin':
-                    os.system('chflags nouchg {}'.format(output_file))
-                    os.remove(output_file)
 
             if not test_msg:
                 """VOLATILE CODE: DO NOT MOVE OR ALTER IN ANY WAY"""
@@ -511,11 +509,13 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                 await asyncio.sleep(0.25)
         """END VOLATILE CODE"""
         
-        # Play the audio file
+        # Play the in-memory audio (only this speaker slot may touch the mixer)
         window.start_busy()
-        if os.path.exists(output_file):
+        if audio_data:
             if not replay_chat or not record: # record but don't read text aloud for speed
-                pygame.mixer.music.load(output_file)
+                audio_buf = io.BytesIO(audio_data)
+                audio_buf.seek(0)
+                pygame.mixer.music.load(audio_buf, "mp3")
                 pygame.mixer.music.play()
             if not test_msg:
                 # Record audio output
@@ -551,9 +551,9 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                             fileout = open(local_rec, 'ab')
                             fileout.write(f2)
                             fileout.close()             
-                    # append mp3 tts file to recording
-                    with open(output_file, 'rb') as f2, open(local_rec, 'ab') as f1:
-                        shutil.copyfileobj(f2, f1)
+                    # append in-memory mp3 to recording
+                    with open(local_rec, 'ab') as f1:
+                        f1.write(audio_data)
                     if paragraph: # space out paragraphs in recording
                         with open("silence.mp3", 'rb') as file1:
                             silence = file1.read()
@@ -565,8 +565,8 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                         fileout.write(f2)
                         fileout.close()
         else:
-            print(f"NOTICE! Output file not found: {output_file}")
-            logging.error(f"Output file not found: {output_file}")
+            print("NOTICE! No TTS audio received.")
+            logging.error("No TTS audio received.")
             if not test_msg:
                 current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
                 speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
@@ -574,9 +574,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             return
 
         # Wait for playback to finish with timeout
-        if os.path.exists(output_file):
-            size = os.path.getsize(output_file)
-        else: size = 0
+        size = len(audio_data)
         duration = round(size/144 * 0.024,3) # total duration of mp3 recording so far, rounded to correct maths errors since the result can only contain 3 decimel figures
         timeout = 60 + duration # maximum wait time in seconds
         elapsed = 0
@@ -589,6 +587,8 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         # Clean up and reset the flag
         pygame.mixer.music.stop()
         pygame.mixer.music.unload()
+        if audio_buf is not None:
+            audio_buf.close()
 
     if com_error_flag:
         print("NOTICE! Error creating EdgeTTS audio file.")
