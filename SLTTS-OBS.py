@@ -489,7 +489,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             err_msg = f"{type(e).__name__}: {e or '(no message)'}"
 
         if err_msg:
-            print(f"Error {err_msg} for text: {text2say}")
+            print(f"IGNORED! Error {err_msg} for text: {text2say}")
             logging.error(f"Error {err_msg} for text: {text2say}")
 
             if not test_msg:
@@ -1128,8 +1128,9 @@ async def monitor_log(log_file):
                                             
                                             # Use unidecode to transliterate the speaker name
                                             tmp_speaker = unidecode(speaker.lower(), errors='ignore', replace_str='¿').title()
+                                            speaker_lower = speaker.lower()
 
-                                            if speaker == 'Second Life':
+                                            if speaker_lower == 'second life' or speaker_lower == 'secondlife':
                                                 first_name = None
                                             elif " " in tmp_speaker:
                                                 tmp = (re.sub(r'\s+', ' ', tmp_speaker).strip()).split(' ')
