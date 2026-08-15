@@ -27,6 +27,13 @@ Prevented more than one instance of SLTTS from being launched at the same time a
 --Socrates Dionysus, 12 August 2026
 
 
+"""Main changes made in version 2.0.6"""
+
+Edit the Name to Voice and Slang File inside the tool.
+
+--Jara Lowell
+
+
 """Main changes made in version 2.0.5"""
 
 Merged the main branch with the dev branch. The main branch is now ahead of dev.
