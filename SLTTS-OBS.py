@@ -121,6 +121,26 @@ def resolve_name2voice(speaker_part):
     key = normalize_lookup_key(speaker_part)
     return name2voice_lookup.get(key)
 
+def pitch_from_speaker(speaker_name, spread_hz=10):
+    """Stable slight pitch offset from speaker name bytes.
+
+    Same avatar always gets the same offset. Different names sharing one Edge
+    voice (for example several females on Emma) land on nearby but distinct
+    pitches so they are easier to tell apart.
+    """
+    name = normalize_text(speaker_name)
+    if not name:
+        return '+0Hz'
+    n = 0
+    for b in name.encode('utf-8'):
+        n = (n * 31 + b) & 0xFFFFFFFF
+    # 2 * spread_hz slots, skipping 0Hz so every named speaker is shifted.
+    slot = n % (spread_hz * 2)
+    hz = slot - spread_hz
+    if hz >= 0:
+        hz += 1
+    return f'{hz:+d}Hz'
+
 def ascii_name(name):
     # Remove all non-letter characters except spaces (\d\s- to allow hyphenated names and numbers)
     name = re.sub(r'[^\p{L}\s]', '', name)
@@ -438,7 +458,7 @@ speakers = 3
 recording = ""
 max_silence = 3600
 
-async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), time_delta = timedelta(seconds=0), paragraph = True, test_msg = False):
+async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), time_delta = timedelta(seconds=0), paragraph = True, test_msg = False, speaker_name=None):
     """Use Edge TTS to speak the given text."""
     global EdgeVoice, window, current_player, speaker_active, speakers, follow_timestamps, record, replay_chat, verbose
     
@@ -467,12 +487,14 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             interp = round(min_rate + (max_rate - min_rate) * (text_len - min_len) / (max_len - min_len))
             _rate = f'+{interp}%'
 
+        _pitch = '+0Hz' if test_msg else pitch_from_speaker(speaker_name)
+
         err_msg = None
         audio_data = b""
         try:
             async def _tts_bytes():
                 chunks = bytearray()
-                communicate = Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch='+0Hz')
+                communicate = Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch=_pitch)
                 async for message in communicate.stream():
                     if message["type"] == "audio":
                         chunks.extend(message["data"])
@@ -1265,7 +1287,7 @@ async def monitor_log(log_file):
                                                             paragraph = False # segmented paragraph has not reached the last segment of sentances so don't add an end paragraph delay when speaking or recording
                                                         pg_delta = timedelta(seconds=0) # don't delay start of speaking of paragraph or segment
                                                         speaker_active[output_file_counter] = 1
-                                                        task1[output_file_counter] = asyncio.create_task(speak_text(to_speak, thisvoice, output_file_counter, chat_delta, pg_delta, paragraph))
+                                                        task1[output_file_counter] = asyncio.create_task(speak_text(to_speak, thisvoice, output_file_counter, chat_delta, pg_delta, paragraph, speaker_name=speaker_part))
                                                         if speakers == 1: await task1[output_file_counter] # default to legacy behaviour if there is only one speaker thread
                                                         # Rotate to next output file
                                                         output_file_counter = (output_file_counter + 1) % speakers
@@ -1401,7 +1423,7 @@ async def monitor_log(log_file):
                                                         paragraph = False
                                                     else: paragraph = False # first sentance in split paragraph so no delay between sentances but delay between this and the last paragraph in recording
                                                     speaker_active[output_file_counter] = 1
-                                                    task1[output_file_counter] = asyncio.create_task(speak_text(message, last_voice, output_file_counter, chat_delta, time_delta, paragraph))
+                                                    task1[output_file_counter] = asyncio.create_task(speak_text(message, last_voice, output_file_counter, chat_delta, time_delta, paragraph, speaker_name=last_user))
                                                     if speakers == 1: await [output_file_counter] # legacy behaviour
                                                     # Rotate to next output file
                                                     output_file_counter = (output_file_counter + 1) % speakers
