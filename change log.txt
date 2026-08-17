@@ -1,5 +1,12 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.7.2"""
+
+Replaced writing temporary audio files to disk with in-memory playback. Running multiple instances from the same directory is now safe during playback and recording. Running multiple instances from the same directory can still corrupt files and settings being written to disk, so it is not recommended.
+
+--Jara Lowell, 13 August 2026
+
+
 """Main changes made in version 2.0.7.1"""
 
 If EdgeTTS fails to complete rendering text to speech the output file may still be locked. SLTTS will now attempt to unlock and delete it to free up the thread. The speak_text function may not be returning correctly after this error so code has been added to prevent issues.
@@ -18,6 +25,13 @@ edge_tts_timeout = 45
 Prevented more than one instance of SLTTS from being launched at the same time as another instance is running from the same folder. The user can choose to allow a new instance to run but this is inadvisable since it can overwrite files and freeze the read loop.
 
 --Socrates Dionysus, 12 August 2026
+
+
+"""Main changes made in version 2.0.6"""
+
+Edit the Name to Voice and Slang File inside the tool.
+
+--Jara Lowell
 
 
 """Main changes made in version 2.0.5"""
