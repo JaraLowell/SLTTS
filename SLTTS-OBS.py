@@ -148,7 +148,7 @@ def pitch_from_speaker(speaker_name, VoiceOverride = None, spread_hz=1):
     thisgender = None
     if voice2gender_lookup:
         thisgender = resolve_voice2gender(VoiceOverride)
-    if thisgender == "Female": spread_hz = spread_hz * 2
+        if thisgender == "Female": spread_hz = spread_hz * 2
     
     name = normalize_text(speaker_name)
     if not name:
