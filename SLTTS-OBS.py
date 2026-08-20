@@ -121,7 +121,7 @@ def resolve_name2voice(speaker_part):
     key = normalize_lookup_key(speaker_part)
     return name2voice_lookup.get(key)
 
-def pitch_from_speaker(speaker_name, spread_hz=10):
+def pitch_from_speaker(speaker_name, spread_hz=1):
     """Stable slight pitch offset from speaker name bytes.
 
     Same avatar always gets the same offset. Different names sharing one Edge
@@ -135,7 +135,6 @@ def pitch_from_speaker(speaker_name, spread_hz=10):
     for b in name.encode('utf-8'):
         n = (n * 31 + b) & 0xFFFFFFFF
     # 5 slots avaiable shifed by 1Hz before speaker's voices sound unnaturally shifted
-    spread_hz = 1
     slot = (n % 5) - 2
     hz = slot * spread_hz
     return f'{hz:+d}Hz'
