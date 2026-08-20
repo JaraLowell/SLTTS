@@ -30,17 +30,57 @@ def merge_config_settings(config, current_values, default_values=None, allow_emp
     return config
 
 
+def load_voice_dropdown_choices(path="voice2gender.json"):
+    """Load TTS voice names from voice2gender.json for the Name Sex dropdown."""
+    if not os.path.exists(path):
+        return []
+
+    try:
+        with open(path, "r", encoding="utf-8-sig") as file:
+            data = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    if not isinstance(data, dict):
+        return []
+
+    choices = []
+    for voice, gender in data.items():
+        voice = str(voice).strip()
+        if not voice:
+            continue
+        gender = str(gender).strip()
+        label = f"{voice} ({gender})" if gender else voice
+        choices.append((voice, label))
+    return choices
+
+
 class MappingEditorWindow:
     """Edit key/value mappings with a Treeview so large lists stay responsive."""
 
     _style_initialized = False
 
-    def __init__(self, parent, title, heading, key_label, value_label, rows, on_save, on_close):
+    def __init__(self, parent, title, heading, key_label, value_label, rows, on_save, on_close, value_choices=None):
         self.on_save = on_save
         self.on_close = on_close
         self._syncing = False
         self._dirty = False
         self._current_item = None
+        self._dropdown_placeholder = "Select TTS Voice"
+        self.value_menu = None
+        self.value_entry = None
+        self._use_value_dropdown = value_choices is not None
+        self._label_by_value = {}
+        self._value_by_label = {}
+        if self._use_value_dropdown:
+            for voice, label in value_choices or []:
+                self._label_by_value[voice] = label
+                self._value_by_label[label] = voice
+            for _name, voice in rows or []:
+                voice = str(voice).strip()
+                if voice and voice not in self._label_by_value:
+                    self._label_by_value[voice] = voice
+                    self._value_by_label[voice] = voice
 
         self.window = ctk.CTkToplevel(parent)
         self.window.title(title)
@@ -101,10 +141,22 @@ class MappingEditorWindow:
         self.value_var = ctk.StringVar()
         self.key_entry = ctk.CTkEntry(editor_frame, border_width=0, textvariable=self.key_var)
         self.key_entry.grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(0, 4))
-        self.value_entry = ctk.CTkEntry(editor_frame, border_width=0, textvariable=self.value_var)
-        self.value_entry.grid(row=1, column=1, sticky="ew", padx=(0, 8), pady=(0, 4))
+        if self._use_value_dropdown:
+            menu_values = [self._dropdown_placeholder] + list(self._label_by_value.values())
+            self.value_menu = ctk.CTkOptionMenu(
+                editor_frame,
+                values=menu_values,
+                dynamic_resizing=False,
+                font=("Consolas", 14, "bold"),
+                command=self._on_value_selected,
+            )
+            self.value_menu.grid(row=1, column=1, sticky="ew", padx=(0, 8), pady=(0, 4))
+            self.value_menu.set(self._dropdown_placeholder)
+        else:
+            self.value_entry = ctk.CTkEntry(editor_frame, border_width=0, textvariable=self.value_var)
+            self.value_entry.grid(row=1, column=1, sticky="ew", padx=(0, 8), pady=(0, 4))
+            self.value_var.trace_add("write", self._on_edit)
         self.key_var.trace_add("write", self._on_edit)
-        self.value_var.trace_add("write", self._on_edit)
 
         controls_frame = ctk.CTkFrame(outer, fg_color="transparent")
         controls_frame.grid(row=4, column=0, sticky="ew", padx=10, pady=(4, 10))
@@ -280,7 +332,7 @@ class MappingEditorWindow:
         value = values[1] if len(values) > 1 else ""
         self._syncing = True
         self.key_var.set(key)
-        self.value_var.set(value)
+        self._set_value(value)
         self._syncing = False
         self._dirty = False
 
@@ -289,6 +341,38 @@ class MappingEditorWindow:
             return
         self._dirty = True
         self._commit_editor()
+
+    def _on_value_selected(self, _choice):
+        if self._syncing:
+            return
+        self._dirty = True
+        self._commit_editor()
+
+    def _current_value(self):
+        if self.value_menu is None:
+            return self.value_var.get()
+        label = self.value_menu.get()
+        if label == self._dropdown_placeholder:
+            return ""
+        return self._value_by_label.get(label, label)
+
+    def _set_value(self, value):
+        if self.value_menu is None:
+            self.value_var.set(value)
+            return
+        value = str(value).strip()
+        if not value:
+            self.value_menu.set(self._dropdown_placeholder)
+            return
+        label = self._label_by_value.get(value, value)
+        if label not in self._value_by_label:
+            self._label_by_value[value] = label
+            self._value_by_label[label] = value
+            menu_values = list(self.value_menu.cget("values"))
+            if label not in menu_values:
+                menu_values.append(label)
+                self.value_menu.configure(values=menu_values)
+        self.value_menu.set(label)
 
     def _commit_editor(self):
         item = self._current_item
@@ -300,7 +384,7 @@ class MappingEditorWindow:
             return
         if not exists:
             return
-        self.tree.item(item, values=(self.key_var.get(), self.value_var.get()))
+        self.tree.item(item, values=(self.key_var.get(), self._current_value()))
 
     def _restripe(self):
         for index, item in enumerate(self.tree.get_children()):
@@ -476,7 +560,7 @@ class MainWindow(ctk.CTk):
         self.save_config_button.grid(row=0, column=0, padx=(0, 4), sticky="w")
 
         # Name to voice editor button
-        self.name_sex_button = ctk.CTkButton(self.bottom_actions_frame, text="Name Sex", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888", command=self.open_name2voice_editor)
+        self.name_sex_button = ctk.CTkButton(self.bottom_actions_frame, text="Gender Edit", font=("Consolas", 14, "bold"), width=220, border_width=0, border_color="#888888", command=self.open_name2voice_editor)
         self.name_sex_button.grid(row=0, column=1, padx=4, sticky="ew")
 
         # Slang replacement editor button
@@ -567,6 +651,7 @@ class MainWindow(ctk.CTk):
             rows=self._load_name2voice_rows(),
             on_save=self._save_name2voice_editor,
             on_close=self._close_name2voice_editor,
+            value_choices=load_voice_dropdown_choices(),
         )
         self.name2voice_editor_window = self.name2voice_editor.window
 
