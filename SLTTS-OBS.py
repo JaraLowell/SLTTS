@@ -1652,8 +1652,14 @@ def shut_down_monitoring():
 def update_lists():
     """Update the IgnoreList and SpeakOnlyList from the UI."""
     print("Updating IgnoreList and SpeakOnlyList...")
-    update_global("IgnoreList", [item.strip().lower() for item in window.ignore_list_input.get("1.0", "end").split(',')])
-    update_global("SpeakOnlyList", [item.strip().lower() for item in window.onlytalk_list_input.get("1.0", "end").split(',')])
+    update_global(
+        "IgnoreList",
+        [item.strip().lower() for item in window.ignore_list_input.get("1.0", "end").split(',') if item.strip()],
+    )
+    update_global(
+        "SpeakOnlyList",
+        [item.strip().lower() for item in window.onlytalk_list_input.get("1.0", "end").split(',') if item.strip()],
+    )
 
 async def speak_test_message():
     """Speak a test message."""
@@ -1682,8 +1688,8 @@ if __name__ == "__main__":
     global Enable_Spelling_Check, IgnoreList, OBSChatFiltered, EdgeVoicem, SpeakOnlyList#, speakers, replay_chat, follow_timestamps, record, verbose
     log_file_path = config.get('Settings', 'log_file_path')
     Enable_Spelling_Check = config.getboolean('Settings', 'enable_spelling_check')
-    IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list', fallback='').split(',')]
-    SpeakOnlyList = [item.strip() for item in config.get('Settings', 'speak_only_list', fallback='').split(',')]
+    IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list', fallback='').split(',') if item.strip()]
+    SpeakOnlyList = [item.strip() for item in config.get('Settings', 'speak_only_list', fallback='').split(',') if item.strip()]
     OBSChatFiltered = config.getboolean('Settings', 'obs_chat_filtered')
     EdgeVoice = config.get('Settings', 'edge_tts_llm')
     edge_tts_timeout = config.getint('Settings', 'edge_tts_timeout', fallback=45)

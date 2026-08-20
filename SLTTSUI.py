@@ -8,9 +8,10 @@ from configparser import ConfigParser
 from pygame import mixer
 from pygame._sdl2 import get_audio_device_names
 
-def merge_config_settings(config, current_values, default_values=None):
+def merge_config_settings(config, current_values, default_values=None, allow_empty_keys=None):
     """Merge current UI values into the config while preserving existing values."""
     default_values = default_values or {}
+    allow_empty_keys = set(allow_empty_keys or ())
 
     if not config.has_section('Settings'):
         config.add_section('Settings')
@@ -22,7 +23,7 @@ def merge_config_settings(config, current_values, default_values=None):
     for key, value in current_values.items():
         if value is None:
             continue
-        if value == '':
+        if value == '' and key not in allow_empty_keys:
             continue
         config.set('Settings', key, str(value))
 
@@ -752,7 +753,12 @@ class MainWindow(ctk.CTk):
             'obs_chat_filtered': str(self.global_config.getboolean('Settings', 'obs_chat_filtered', fallback=True)),
             'enable_spelling_check': str(self.global_config.getboolean('Settings', 'enable_spelling_check', fallback=False)),
         }
-        self.global_config = merge_config_settings(self.global_config, current_values, defaults)
+        self.global_config = merge_config_settings(
+            self.global_config,
+            current_values,
+            defaults,
+            allow_empty_keys={"ignore_list", "speak_only_list"},
+        )
         
         with open("config.ini", 'w') as config_file:
             self.global_config.write(config_file)
