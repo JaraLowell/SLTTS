@@ -70,6 +70,7 @@ slang_exact_lookup = {}
 name2voice_lookup = {}
 primary_instance = True
 edge_tts_timeout = 45
+shift_pitch = False
 
 def normalize_text(value):
     """Normalize text for consistent Unicode handling across files and runtime input."""
@@ -120,14 +121,35 @@ def resolve_name2voice(speaker_part):
     """Return mapped voice for speaker using normalized Unicode matching."""
     key = normalize_lookup_key(speaker_part)
     return name2voice_lookup.get(key)
+    
+def build_voice2gender_lookup(mapping):
+    """Build normalized lookup for voice-to-gender mapping."""
+    lookup = {}
+    for raw_voice, raw_gender in mapping.items():
+        voice = normalize_text(raw_voice)
+        gender = normalize_text(raw_gender)
+        if not voice or not gender:
+            continue
+        lookup[normalize_lookup_key(voice)] = gender
+    return lookup
+    
+def resolve_voice2gender(voice_part):
+    """Return mapped voice for speaker using normalized Unicode matching."""
+    key = normalize_lookup_key(voice_part)
+    return voice2gender_lookup.get(key)
 
-def pitch_from_speaker(speaker_name, spread_hz=1):
+def pitch_from_speaker(speaker_name, VoiceOverride = None, spread_hz=1):
     """Stable slight pitch offset from speaker name bytes.
 
     Same avatar always gets the same offset. Different names sharing one Edge
     voice (for example several females on Emma) land on nearby but distinct
     pitches so they are easier to tell apart.
     """
+    thisgender = None
+    if voice2gender_lookup:
+        thisgender = resolve_voice2gender(VoiceOverride)
+    if thisgender == "Female": spread_hz = spread_hz * 2
+    
     name = normalize_text(speaker_name)
     if not name:
         return '+0Hz'
@@ -137,6 +159,9 @@ def pitch_from_speaker(speaker_name, spread_hz=1):
     # 5 slots avaiable shifed by 1Hz before speaker's voices sound unnaturally shifted
     slot = (n % 5) - 2
     hz = slot * spread_hz
+    if verbose: print (f'VERBOSE! Voice: {VoiceOverride}, Gender: {thisgender}, Pitch shift: {hz:+d}Hz')
+    #if hz >= 0:
+    #    hz += 1
     return f'{hz:+d}Hz'
 
 def ascii_name(name):
@@ -485,7 +510,9 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             interp = round(min_rate + (max_rate - min_rate) * (text_len - min_len) / (max_len - min_len))
             _rate = f'+{interp}%'
 
-        _pitch = '+0Hz' if test_msg else pitch_from_speaker(speaker_name)
+        if shift_pitch and not test_msg:
+            _pitch = pitch_from_speaker(speaker_name, VoiceOverride)
+        else: _pitch = '+0Hz'
 
         err_msg = None
         audio_data = b""
@@ -1675,6 +1702,7 @@ if __name__ == "__main__":
     record_directory = config.get('Settings', 'record_directory', fallback='Recordings')
     custom_reader = config.getint('Settings', 'custom_reader', fallback=0)
     max_silence = config.getint('Settings', 'max_silence', fallback=7200)
+    shift_pitch = config.getint('Settings', 'enable_pitch_shift', fallback=0)
     # all_voices = asyncio.run(get_voices()) # Fetch all voices
 
     update_volume(config.getint('Settings', 'volume', fallback=75))
@@ -1713,6 +1741,19 @@ if __name__ == "__main__":
         else:
             print("NOTICE! Abbreviation file is empty, missing, or contains no valid entries.")
 
+    voice2gender = {}
+    voice2gender_lookup = {}
+    
+    def refresh_voice2gender_mapping():
+        """Reload slang replacement mappings from disk so UI edits take effect immediately."""
+        global voice2gender, voice2gender_lookup
+        voice2gender = load_slang_replacements("voice2gender.json")
+        voice2gender_lookup = build_voice2gender_lookup(voice2gender)
+        if voice2gender:
+            print(f"NOTICE! Voice file reading done, {len(voice2gender)} voices found and loaded.")
+        else:
+            print("NOTICE! Voice file is empty, missing, or contains no valid entries.")
+
     def start_monitoring_ui():
         """Start monitoring from the UI."""
         global chat_messages, slang_replacements, readloop, name2voice
@@ -1722,6 +1763,7 @@ if __name__ == "__main__":
             readloop = True
             refresh_slang_mapping()
             refresh_name2voice_mapping()
+            refresh_voice2gender_mapping()
             chat_messages.clear()
             start_monitoring(log_file_path)
             window.start_button.configure(text="Stop Log Reading", text_color="#ff8080")
@@ -1866,7 +1908,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.7.2, by Jara Lowell")
+    print("Second Life Chat log to Speech version 2.0.7.3, by Jara Lowell")
     
     if record == True:
         toggle_recording()
