@@ -1,5 +1,14 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.7.3"""
+
+Each English EdgeTTS voice can now be pitch shifted based on assigned gender and the speaker's name so that different named avatars assigned with the same voice do not all sound the same. There are 5 levels of pitch shift possible (-2, -1, 0, 1, 2) before the voices start to sound unnatural. Female voices will have their pitch shifted by twice as many Hz as male voices, since female voices are on average double the pitch of male voices. Additional non-English voices can be assigned a gender in voice2gender.json otherwise, they will be treated the same as male voices in regard to shifting pitch.
+
+Set enable_pitch_shift = 1 in config.ini to enable.
+
+--Jara Lowell, Socrates Dionysus, 20 August 2026
+
+
 """Main changes made in version 2.0.7.2"""
 
 Replaced writing temporary audio files to disk with in-memory playback. Running multiple instances from the same directory is now safe during playback and recording. Running multiple instances from the same directory can still corrupt files and settings being written to disk, so it is not recommended.
