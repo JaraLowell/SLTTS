@@ -3,8 +3,9 @@ import sys
 import time
 import json
 import customtkinter as ctk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from configparser import ConfigParser
+from pygame import mixer
 from pygame._sdl2 import get_audio_device_names
 
 def merge_config_settings(config, current_values, default_values=None):
@@ -27,6 +28,282 @@ def merge_config_settings(config, current_values, default_values=None):
 
     return config
 
+
+class MappingEditorWindow:
+    """Edit key/value mappings with a Treeview so large lists stay responsive."""
+
+    _style_initialized = False
+
+    def __init__(self, parent, title, heading, key_label, value_label, rows, on_save, on_close):
+        self.on_save = on_save
+        self.on_close = on_close
+        self._syncing = False
+        self._dirty = False
+        self._current_item = None
+
+        self.window = ctk.CTkToplevel(parent)
+        self.window.title(title)
+        self.window.geometry("920x640")
+        self.window.transient(parent)
+        self.window.grab_set()
+        self.window.protocol("WM_DELETE_WINDOW", self.close)
+
+        outer = ctk.CTkFrame(self.window, corner_radius=10)
+        outer.pack(fill="both", expand=True, padx=10, pady=10)
+        outer.grid_columnconfigure(0, weight=1)
+        outer.grid_rowconfigure(2, weight=1)
+
+        title_label = ctk.CTkLabel(outer, text=heading, font=("Consolas", 18, "bold"))
+        title_label.grid(row=0, column=0, sticky="w", padx=12, pady=(10, 6))
+
+        self.count_label = ctk.CTkLabel(outer, text="", font=("Consolas", 12), text_color="#a1a1a1")
+        self.count_label.grid(row=1, column=0, sticky="w", padx=12, pady=(0, 6))
+
+        tree_host = ctk.CTkFrame(outer, corner_radius=8, fg_color="#2b2b2b")
+        tree_host.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 6))
+        tree_host.grid_columnconfigure(0, weight=1)
+        tree_host.grid_rowconfigure(0, weight=1)
+
+        self._ensure_tree_style()
+        self.tree = ttk.Treeview(
+            tree_host,
+            columns=("key", "value"),
+            show="headings",
+            selectmode="browse",
+            style="Mapping.Treeview",
+        )
+        self.tree.heading("key", text=key_label, anchor="w")
+        self.tree.heading("value", text=value_label, anchor="w")
+        self.tree.column("key", width=340, stretch=True, anchor="w")
+        self.tree.column("value", width=420, stretch=True, anchor="w")
+        self.tree.tag_configure("even", background="#2b2b2b", foreground="#dce4ee")
+        self.tree.tag_configure("odd", background="#333333", foreground="#dce4ee")
+
+        scrollbar = ttk.Scrollbar(tree_host, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        self.tree.grid(row=0, column=0, sticky="nsew", padx=(6, 0), pady=6)
+        scrollbar.grid(row=0, column=1, sticky="ns", padx=(0, 6), pady=6)
+        self.tree.bind("<<TreeviewSelect>>", self._on_select)
+        self.tree.bind("<Double-1>", lambda _e: self.key_entry.focus_set())
+        self.tree.bind("<MouseWheel>", self._on_mousewheel)
+        tree_host.bind("<MouseWheel>", self._on_mousewheel)
+
+        editor_frame = ctk.CTkFrame(outer, fg_color="transparent")
+        editor_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(4, 0))
+        editor_frame.grid_columnconfigure(0, weight=3)
+        editor_frame.grid_columnconfigure(1, weight=4)
+
+        ctk.CTkLabel(editor_frame, text=key_label, font=("Consolas", 13, "bold")).grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(editor_frame, text=value_label, font=("Consolas", 13, "bold")).grid(row=0, column=1, sticky="w")
+
+        self.key_var = ctk.StringVar()
+        self.value_var = ctk.StringVar()
+        self.key_entry = ctk.CTkEntry(editor_frame, border_width=0, textvariable=self.key_var)
+        self.key_entry.grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(0, 4))
+        self.value_entry = ctk.CTkEntry(editor_frame, border_width=0, textvariable=self.value_var)
+        self.value_entry.grid(row=1, column=1, sticky="ew", padx=(0, 8), pady=(0, 4))
+        self.key_var.trace_add("write", self._on_edit)
+        self.value_var.trace_add("write", self._on_edit)
+
+        controls_frame = ctk.CTkFrame(outer, fg_color="transparent")
+        controls_frame.grid(row=4, column=0, sticky="ew", padx=10, pady=(4, 10))
+
+        add_button = ctk.CTkButton(controls_frame, text="Add Row", width=160, command=self.add_row)
+        add_button.pack(side="left", padx=(0, 6))
+
+        remove_button = ctk.CTkButton(
+            controls_frame,
+            text="Remove",
+            width=160,
+            fg_color="#9c4f4f",
+            hover_color="#874343",
+            command=self.remove_selected,
+        )
+        remove_button.pack(side="left", padx=(0, 6))
+
+        cancel_button = ctk.CTkButton(
+            controls_frame,
+            text="Cancel",
+            width=160,
+            fg_color="#5e5e5e",
+            hover_color="#4e4e4e",
+            command=self.close,
+        )
+        cancel_button.pack(side="right", padx=(6, 0))
+
+        save_button = ctk.CTkButton(controls_frame, text="Save", width=160, command=self.on_save)
+        save_button.pack(side="right", padx=(6, 0))
+
+        if not rows:
+            rows = [("", "")]
+        for key, value in rows:
+            self.tree.insert("", "end", values=(str(key), str(value)))
+        self._restripe()
+        self._update_count()
+        self.window.after_idle(self._select_first)
+
+    @classmethod
+    def _ensure_tree_style(cls):
+        if cls._style_initialized:
+            return
+        style = ttk.Style()
+        try:
+            style.theme_use("clam")
+        except Exception:
+            pass
+        style.configure(
+            "Mapping.Treeview",
+            background="#2b2b2b",
+            foreground="#dce4ee",
+            fieldbackground="#2b2b2b",
+            borderwidth=0,
+            relief="flat",
+            rowheight=28,
+            font=("Consolas", 12),
+        )
+        style.configure(
+            "Mapping.Treeview.Heading",
+            background="#1f1f1f",
+            foreground="#dce4ee",
+            relief="flat",
+            borderwidth=0,
+            font=("Consolas", 12, "bold"),
+        )
+        style.map("Mapping.Treeview", background=[("selected", "#1f6aa5")], foreground=[("selected", "#ffffff")])
+        style.map("Mapping.Treeview.Heading", background=[("active", "#333333")])
+        cls._style_initialized = True
+
+    def get_rows(self):
+        if self._dirty:
+            self._commit_editor()
+        rows = []
+        for item in self.tree.get_children():
+            values = self.tree.item(item, "values")
+            key = values[0] if values else ""
+            value = values[1] if len(values) > 1 else ""
+            rows.append((key, value))
+        return rows
+
+    def add_row(self):
+        if self._dirty:
+            self._commit_editor()
+            self._dirty = False
+        item = self.tree.insert("", "end", values=("", ""))
+        self._restripe()
+        self.tree.selection_set(item)
+        self.tree.focus(item)
+        self.tree.see(item)
+        self._current_item = item
+        self._load_editor(item)
+        self.key_entry.focus_set()
+        self._update_count()
+
+    def remove_selected(self):
+        selected = self.tree.selection()
+        if not selected:
+            return
+
+        if len(self.tree.get_children()) == 1:
+            only = selected[0]
+            self._current_item = only
+            self.tree.item(only, values=("", ""))
+            self._load_editor(only)
+            return
+
+        item = selected[0]
+        next_item = self.tree.next(item) or self.tree.prev(item)
+        self._dirty = False
+        self.tree.delete(item)
+        self._restripe()
+        if next_item:
+            self.tree.selection_set(next_item)
+            self.tree.focus(next_item)
+            self.tree.see(next_item)
+            self._current_item = next_item
+            self._load_editor(next_item)
+        else:
+            self._current_item = None
+        self._update_count()
+
+    def close(self):
+        callback = self.on_close
+        self.on_close = None
+        if callable(callback):
+            callback()
+
+    def destroy(self):
+        window = self.window
+        self.window = None
+        if window is None:
+            return
+        try:
+            if window.winfo_exists():
+                window.grab_release()
+                window.destroy()
+        except Exception:
+            pass
+
+    def _on_mousewheel(self, event):
+        if event.delta:
+            self.tree.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        return "break"
+
+    def _select_first(self):
+        children = self.tree.get_children()
+        if not children:
+            return
+        self.tree.selection_set(children[0])
+        self.tree.focus(children[0])
+        self._current_item = children[0]
+        self._load_editor(children[0])
+
+    def _on_select(self, _event=None):
+        if self._dirty:
+            self._commit_editor()
+            self._dirty = False
+        selected = self.tree.selection()
+        if selected:
+            self._current_item = selected[0]
+            self._load_editor(selected[0])
+
+    def _load_editor(self, item):
+        values = self.tree.item(item, "values")
+        key = values[0] if values else ""
+        value = values[1] if len(values) > 1 else ""
+        self._syncing = True
+        self.key_var.set(key)
+        self.value_var.set(value)
+        self._syncing = False
+        self._dirty = False
+
+    def _on_edit(self, *_args):
+        if self._syncing:
+            return
+        self._dirty = True
+        self._commit_editor()
+
+    def _commit_editor(self):
+        item = self._current_item
+        if not item:
+            return
+        try:
+            exists = self.tree.exists(item)
+        except Exception:
+            return
+        if not exists:
+            return
+        self.tree.item(item, values=(self.key_var.get(), self.value_var.get()))
+
+    def _restripe(self):
+        for index, item in enumerate(self.tree.get_children()):
+            self.tree.item(item, tags=("odd" if index % 2 else "even",))
+
+    def _update_count(self):
+        count = len(self.tree.get_children())
+        label = "entry" if count == 1 else "entries"
+        self.count_label.configure(text=f"{count} {label}")
+
+
 class MainWindow(ctk.CTk):
     def __init__(self, global_config):
         super().__init__()
@@ -39,11 +316,11 @@ class MainWindow(ctk.CTk):
         self.name2voice_file = "name2voice.json"
         self.name2voice_change_callback = None
         self.name2voice_editor_window = None
-        self.name2voice_rows = []
+        self.name2voice_editor = None
         self.slang_file = "slangreplce.json"
         self.slang_change_callback = None
         self.slang_editor_window = None
-        self.slang_rows = []
+        self.slang_editor = None
 
         # Busy indicator variables
         self.is_busy = False
@@ -99,7 +376,17 @@ class MainWindow(ctk.CTk):
         self.test_button.grid(row=0, column=3, padx=5)
 
         # pygame audio device output pulldown selection button / no label
-        audio_devices = get_audio_device_names(False)
+        if mixer.get_init() is None:
+            try:
+                mixer.init()
+            except Exception:
+                pass
+        try:
+            audio_devices = list(get_audio_device_names(False) or [])
+        except Exception:
+            audio_devices = []
+        if not audio_devices:
+            audio_devices = ["Select Playback Device"]
         self.audio_device_menu = ctk.CTkOptionMenu(self.button_frame, values=audio_devices, width=220, dynamic_resizing=False, font=("Consolas", 14, "bold"))
         self.audio_device_menu.set("Select Playback Device")
         self.audio_device_menu.grid(row=0, column=4, padx=5)
@@ -263,51 +550,17 @@ class MainWindow(ctk.CTk):
             self.name2voice_editor_window.focus_force()
             return
 
-        self.name2voice_editor_window = ctk.CTkToplevel(self)
-        self.name2voice_editor_window.title("Name to Voice Mapping")
-        self.name2voice_editor_window.geometry("920x640")
-        self.name2voice_editor_window.transient(self)
-        self.name2voice_editor_window.grab_set()
-        self.name2voice_editor_window.protocol("WM_DELETE_WINDOW", self._close_name2voice_editor)
-
-        outer = ctk.CTkFrame(self.name2voice_editor_window, corner_radius=10)
-        outer.pack(fill="both", expand=True, padx=10, pady=10)
-        outer.grid_columnconfigure(0, weight=1)
-        outer.grid_rowconfigure(2, weight=1)
-
-        title_label = ctk.CTkLabel(outer, text="Name / Voice Mapping", font=("Consolas", 18, "bold"))
-        title_label.grid(row=0, column=0, sticky="w", padx=12, pady=(10, 6))
-
-        header_frame = ctk.CTkFrame(outer, fg_color="transparent")
-        header_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 6))
-        header_frame.grid_columnconfigure(0, weight=3)
-        header_frame.grid_columnconfigure(1, weight=4)
-        ctk.CTkLabel(header_frame, text="Name", font=("Consolas", 13, "bold")).grid(row=0, column=0, sticky="w")
-        ctk.CTkLabel(header_frame, text="TTS Voice", font=("Consolas", 13, "bold")).grid(row=0, column=1, sticky="w")
-
-        self.name2voice_rows = []
-        self.name2voice_rows_frame = ctk.CTkScrollableFrame(outer, corner_radius=8)
-        self.name2voice_rows_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 6))
-        self.name2voice_rows_frame.grid_columnconfigure(0, weight=1)
-
-        controls_frame = ctk.CTkFrame(outer, fg_color="transparent")
-        controls_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(4, 10))
-
-        add_button = ctk.CTkButton(controls_frame, text="Add Row", width=160, command=lambda: self._add_name2voice_row("", ""))
-        add_button.pack(side="left", padx=(0, 6))
-
-        cancel_button = ctk.CTkButton(controls_frame, text="Cancel", width=160, fg_color="#5e5e5e", hover_color="#4e4e4e", command=self._close_name2voice_editor)
-        cancel_button.pack(side="right", padx=(6, 0))
-
-        save_button = ctk.CTkButton(controls_frame, text="Save", width=160, command=self._save_name2voice_editor)
-        save_button.pack(side="right", padx=(6, 0))
-
-        rows = self._load_name2voice_rows()
-        if not rows:
-            rows = [("", "")]
-
-        for name, voice in rows:
-            self._add_name2voice_row(name, voice)
+        self.name2voice_editor = MappingEditorWindow(
+            self,
+            title="Name to Voice Mapping",
+            heading="Name / Voice Mapping",
+            key_label="Name",
+            value_label="TTS Voice",
+            rows=self._load_name2voice_rows(),
+            on_save=self._save_name2voice_editor,
+            on_close=self._close_name2voice_editor,
+        )
+        self.name2voice_editor_window = self.name2voice_editor.window
 
     def _load_name2voice_rows(self):
         if not os.path.exists(self.name2voice_file):
@@ -329,51 +582,16 @@ class MainWindow(ctk.CTk):
         messagebox.showwarning("Unexpected Format", f"{self.name2voice_file} should contain a JSON object mapping names to voices.")
         return []
 
-    def _add_name2voice_row(self, name="", voice=""):
-        row_frame = ctk.CTkFrame(self.name2voice_rows_frame, fg_color="transparent")
-        row_frame.grid_columnconfigure(0, weight=3)
-        row_frame.grid_columnconfigure(1, weight=4)
-
-        name_entry = ctk.CTkEntry(row_frame, border_width=0)
-        name_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8), pady=3)
-        name_entry.insert(0, str(name))
-
-        voice_entry = ctk.CTkEntry(row_frame, border_width=0)
-        voice_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8), pady=3)
-        voice_entry.insert(0, str(voice))
-
-        remove_button = ctk.CTkButton(row_frame, text="Remove", width=90, fg_color="#9c4f4f", hover_color="#874343", command=lambda f=row_frame: self._remove_name2voice_row(f))
-        remove_button.grid(row=0, column=2, sticky="e", pady=3)
-
-        self.name2voice_rows.append({
-            "frame": row_frame,
-            "name_entry": name_entry,
-            "voice_entry": voice_entry,
-        })
-        self._refresh_name2voice_row_positions()
-
-    def _remove_name2voice_row(self, row_frame):
-        if len(self.name2voice_rows) == 1:
-            only_row = self.name2voice_rows[0]
-            only_row["name_entry"].delete(0, "end")
-            only_row["voice_entry"].delete(0, "end")
+    def _save_name2voice_editor(self):
+        if self.name2voice_editor is None:
             return
 
-        self.name2voice_rows = [row for row in self.name2voice_rows if row["frame"] != row_frame]
-        row_frame.destroy()
-        self._refresh_name2voice_row_positions()
-
-    def _refresh_name2voice_row_positions(self):
-        for index, row in enumerate(self.name2voice_rows):
-            row["frame"].grid(row=index, column=0, sticky="ew", pady=(0, 4), padx=4)
-
-    def _save_name2voice_editor(self):
         mapping = {}
         seen_names = set()
 
-        for row in self.name2voice_rows:
-            name = row["name_entry"].get().strip()
-            voice = row["voice_entry"].get().strip()
+        for name, voice in self.name2voice_editor.get_rows():
+            name = name.strip()
+            voice = voice.strip()
 
             if not name and not voice:
                 continue
@@ -406,11 +624,11 @@ class MainWindow(ctk.CTk):
         self._close_name2voice_editor()
 
     def _close_name2voice_editor(self):
-        if self.name2voice_editor_window is not None and self.name2voice_editor_window.winfo_exists():
-            self.name2voice_editor_window.grab_release()
-            self.name2voice_editor_window.destroy()
+        editor = self.name2voice_editor
+        self.name2voice_editor = None
         self.name2voice_editor_window = None
-        self.name2voice_rows = []
+        if editor is not None:
+            editor.destroy()
 
     def open_slang_editor(self):
         if self.slang_editor_window is not None and self.slang_editor_window.winfo_exists():
@@ -418,51 +636,17 @@ class MainWindow(ctk.CTk):
             self.slang_editor_window.focus_force()
             return
 
-        self.slang_editor_window = ctk.CTkToplevel(self)
-        self.slang_editor_window.title("Slang Replacement Mapping")
-        self.slang_editor_window.geometry("920x640")
-        self.slang_editor_window.transient(self)
-        self.slang_editor_window.grab_set()
-        self.slang_editor_window.protocol("WM_DELETE_WINDOW", self._close_slang_editor)
-
-        outer = ctk.CTkFrame(self.slang_editor_window, corner_radius=10)
-        outer.pack(fill="both", expand=True, padx=10, pady=10)
-        outer.grid_columnconfigure(0, weight=1)
-        outer.grid_rowconfigure(2, weight=1)
-
-        title_label = ctk.CTkLabel(outer, text="Slang / Replacement Mapping", font=("Consolas", 18, "bold"))
-        title_label.grid(row=0, column=0, sticky="w", padx=12, pady=(10, 6))
-
-        header_frame = ctk.CTkFrame(outer, fg_color="transparent")
-        header_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 6))
-        header_frame.grid_columnconfigure(0, weight=3)
-        header_frame.grid_columnconfigure(1, weight=4)
-        ctk.CTkLabel(header_frame, text="Word", font=("Consolas", 13, "bold")).grid(row=0, column=0, sticky="w")
-        ctk.CTkLabel(header_frame, text="Replacement", font=("Consolas", 13, "bold")).grid(row=0, column=1, sticky="w")
-
-        self.slang_rows = []
-        self.slang_rows_frame = ctk.CTkScrollableFrame(outer, corner_radius=8)
-        self.slang_rows_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 6))
-        self.slang_rows_frame.grid_columnconfigure(0, weight=1)
-
-        controls_frame = ctk.CTkFrame(outer, fg_color="transparent")
-        controls_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=(4, 10))
-
-        add_button = ctk.CTkButton(controls_frame, text="Add Row", width=160, command=lambda: self._add_slang_row("", ""))
-        add_button.pack(side="left", padx=(0, 6))
-
-        cancel_button = ctk.CTkButton(controls_frame, text="Cancel", width=160, fg_color="#5e5e5e", hover_color="#4e4e4e", command=self._close_slang_editor)
-        cancel_button.pack(side="right", padx=(6, 0))
-
-        save_button = ctk.CTkButton(controls_frame, text="Save", width=160, command=self._save_slang_editor)
-        save_button.pack(side="right", padx=(6, 0))
-
-        rows = self._load_slang_rows()
-        if not rows:
-            rows = [("", "")]
-
-        for word, replacement in rows:
-            self._add_slang_row(word, replacement)
+        self.slang_editor = MappingEditorWindow(
+            self,
+            title="Slang Replacement Mapping",
+            heading="Slang / Replacement Mapping",
+            key_label="Word",
+            value_label="Replacement",
+            rows=self._load_slang_rows(),
+            on_save=self._save_slang_editor,
+            on_close=self._close_slang_editor,
+        )
+        self.slang_editor_window = self.slang_editor.window
 
     def _load_slang_rows(self):
         if not os.path.exists(self.slang_file):
@@ -484,51 +668,16 @@ class MainWindow(ctk.CTk):
         messagebox.showwarning("Unexpected Format", f"{self.slang_file} should contain a JSON object mapping words to replacements.")
         return []
 
-    def _add_slang_row(self, word="", replacement=""):
-        row_frame = ctk.CTkFrame(self.slang_rows_frame, fg_color="transparent")
-        row_frame.grid_columnconfigure(0, weight=3)
-        row_frame.grid_columnconfigure(1, weight=4)
-
-        word_entry = ctk.CTkEntry(row_frame, border_width=0)
-        word_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8), pady=3)
-        word_entry.insert(0, str(word))
-
-        replacement_entry = ctk.CTkEntry(row_frame, border_width=0)
-        replacement_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8), pady=3)
-        replacement_entry.insert(0, str(replacement))
-
-        remove_button = ctk.CTkButton(row_frame, text="Remove", width=90, fg_color="#9c4f4f", hover_color="#874343", command=lambda f=row_frame: self._remove_slang_row(f))
-        remove_button.grid(row=0, column=2, sticky="e", pady=3)
-
-        self.slang_rows.append({
-            "frame": row_frame,
-            "word_entry": word_entry,
-            "replacement_entry": replacement_entry,
-        })
-        self._refresh_slang_row_positions()
-
-    def _remove_slang_row(self, row_frame):
-        if len(self.slang_rows) == 1:
-            only_row = self.slang_rows[0]
-            only_row["word_entry"].delete(0, "end")
-            only_row["replacement_entry"].delete(0, "end")
+    def _save_slang_editor(self):
+        if self.slang_editor is None:
             return
 
-        self.slang_rows = [row for row in self.slang_rows if row["frame"] != row_frame]
-        row_frame.destroy()
-        self._refresh_slang_row_positions()
-
-    def _refresh_slang_row_positions(self):
-        for index, row in enumerate(self.slang_rows):
-            row["frame"].grid(row=index, column=0, sticky="ew", pady=(0, 4), padx=4)
-
-    def _save_slang_editor(self):
         mapping = {}
         seen_words = set()
 
-        for row in self.slang_rows:
-            word = row["word_entry"].get().strip()
-            replacement = row["replacement_entry"].get().strip()
+        for word, replacement in self.slang_editor.get_rows():
+            word = word.strip()
+            replacement = replacement.strip()
 
             if not word and not replacement:
                 continue
@@ -561,11 +710,11 @@ class MainWindow(ctk.CTk):
         self._close_slang_editor()
 
     def _close_slang_editor(self):
-        if self.slang_editor_window is not None and self.slang_editor_window.winfo_exists():
-            self.slang_editor_window.grab_release()
-            self.slang_editor_window.destroy()
+        editor = self.slang_editor
+        self.slang_editor = None
         self.slang_editor_window = None
-        self.slang_rows = []
+        if editor is not None:
+            editor.destroy()
 
     def save_config(self):
         defaults = {
@@ -629,9 +778,8 @@ class MainWindow(ctk.CTk):
 def main(global_config):
     app = MainWindow(global_config)
     app.protocol("WM_DELETE_WINDOW", app.on_close)
+    # Log reading is started from SLTTS-OBS.py, which owns the app mainloop.
     # app.mainloop()
 
 if __name__ == "__main__":
-    global_config = ConfigParser()
-    global_config.read("config.ini")
-    main(global_config)
+    print("Start SLTTS from SLTTS-OBS.py. This file is the UI module and does not read the chat log.")
