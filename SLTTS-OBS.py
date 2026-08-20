@@ -134,11 +134,10 @@ def pitch_from_speaker(speaker_name, spread_hz=10):
     n = 0
     for b in name.encode('utf-8'):
         n = (n * 31 + b) & 0xFFFFFFFF
-    # 2 * spread_hz slots, skipping 0Hz so every named speaker is shifted.
-    slot = n % (spread_hz * 2)
-    hz = slot - spread_hz
-    if hz >= 0:
-        hz += 1
+    # 5 slots avaiable shifed by 1Hz before speaker's voices sound unnaturally shifted
+    spread_hz = 1
+    slot = (n % 5) - 2
+    hz = slot * spread_hz
     return f'{hz:+d}Hz'
 
 def ascii_name(name):
