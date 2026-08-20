@@ -59,7 +59,7 @@ class MappingEditorWindow:
         self.count_label = ctk.CTkLabel(outer, text="", font=("Consolas", 12), text_color="#a1a1a1")
         self.count_label.grid(row=1, column=0, sticky="w", padx=12, pady=(0, 6))
 
-        tree_host = ctk.CTkFrame(outer, corner_radius=8, fg_color="#2b2b2b")
+        tree_host = ctk.CTkFrame(outer, corner_radius=8, fg_color="#2b2b2b", border_width=1, border_color="#1d1d1d")
         tree_host.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 6))
         tree_host.grid_columnconfigure(0, weight=1)
         tree_host.grid_rowconfigure(0, weight=1)
@@ -79,7 +79,7 @@ class MappingEditorWindow:
         self.tree.tag_configure("even", background="#2b2b2b", foreground="#dce4ee")
         self.tree.tag_configure("odd", background="#333333", foreground="#dce4ee")
 
-        scrollbar = ttk.Scrollbar(tree_host, orient="vertical", command=self.tree.yview)
+        scrollbar = ctk.CTkScrollbar(tree_host, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         self.tree.grid(row=0, column=0, sticky="nsew", padx=(6, 0), pady=6)
         scrollbar.grid(row=0, column=1, sticky="ns", padx=(0, 6), pady=6)
@@ -151,6 +151,7 @@ class MappingEditorWindow:
             style.theme_use("clam")
         except Exception:
             pass
+        style.layout("Mapping.Treeview", [("Mapping.Treeview.treearea", {"sticky": "nswe"})])
         style.configure(
             "Mapping.Treeview",
             background="#2b2b2b",
@@ -158,6 +159,9 @@ class MappingEditorWindow:
             fieldbackground="#2b2b2b",
             borderwidth=0,
             relief="flat",
+            lightcolor="#1d1d1d",
+            darkcolor="#1d1d1d",
+            bordercolor="#1d1d1d",
             rowheight=28,
             font=("Consolas", 12),
         )
@@ -167,6 +171,9 @@ class MappingEditorWindow:
             foreground="#dce4ee",
             relief="flat",
             borderwidth=0,
+            lightcolor="#1d1d1d",
+            darkcolor="#1d1d1d",
+            bordercolor="#1d1d1d",
             font=("Consolas", 12, "bold"),
         )
         style.map("Mapping.Treeview", background=[("selected", "#1f6aa5")], foreground=[("selected", "#ffffff")])
