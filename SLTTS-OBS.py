@@ -1661,10 +1661,25 @@ def update_lists():
         [item.strip().lower() for item in window.onlytalk_list_input.get("1.0", "end").split(',') if item.strip()],
     )
 
+test_voice = 0
+
 async def speak_test_message():
     """Speak a test message."""
-    test_message = "This is a Test message from the Second Life Chat to Speech program."
-    task0 = asyncio.create_task(speak_text(test_message, "en-US-EmmaMultilingualNeural", speakers, timedelta(seconds=0), timedelta(seconds=0), False, True))
+    global test_voice
+    # use the first for male and the second for female; otherwise always use the one value given
+    current_value = window.edge_voice_input.get()
+    voices = [v.strip() for v in current_value.split(",")]
+    if not voices:
+        # Empty config use default
+        TestVoice = "en-US-EmmaMultilingualNeural"
+    elif len(voices) == 2:
+        TestVoice = voices[test_voice]
+        test_voice = (test_voice+1)%2
+    else:
+        # Only 1 value or more
+        TestVoice = voices[0]
+    test_message = "This is a Test message from the Second Life Chat-to-Speech program."
+    task0 = asyncio.create_task(speak_text(test_message, TestVoice, speakers, timedelta(seconds=0), timedelta(seconds=0), False, True))
     await task0
 
 if __name__ == "__main__":
