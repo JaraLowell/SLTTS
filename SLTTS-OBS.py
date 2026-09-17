@@ -536,8 +536,8 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             err_msg = f"{type(e).__name__}: {e or '(no message)'}"
 
         if err_msg:
-            print(f"IGNORED! Error {err_msg} for text: {text2say}")
-            logging.error(f"Error {err_msg} for text: {text2say}")
+            print(f"IGNORED! Error {err_msg} For text: {text2say}")
+            logging.error(f"Error {err_msg} For text: {text2say}")
 
             if not test_msg:
                 """VOLATILE CODE: DO NOT MOVE OR ALTER IN ANY WAY"""
@@ -1850,6 +1850,7 @@ if __name__ == "__main__":
         """Open SL Chat Log File"""
         global log_file_path
         position = log_file_path.rfind("\\")
+        if position == -1: position = log_file_path.rfind("/")
         new_log_file_path = filedialog.askopenfilename(initialdir = log_file_path[:position], title = "Select a File", filetypes = (("Text files", "*.txt*"), ("All files", "*.*")))
         if new_log_file_path and new_log_file_path != log_file_path:
             log_file_path = new_log_file_path
