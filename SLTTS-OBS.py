@@ -1849,10 +1849,11 @@ if __name__ == "__main__":
     def open_file():
         """Open SL Chat Log File"""
         global log_file_path
-        position = log_file_path.rfind("\\")
-        if position == -1: position = log_file_path.rfind("/")
-        new_log_file_path = filedialog.askopenfilename(initialdir = log_file_path[:position], title = "Select a File", filetypes = (("Text files", "*.txt*"), ("All files", "*.*")))
-        if new_log_file_path and new_log_file_path != log_file_path:
+        _log_file_path = window.log_file_path_input.get()
+        position = _log_file_path.rfind("\\")
+        if position == -1: position = _log_file_path.rfind("/")
+        new_log_file_path = filedialog.askopenfilename(initialdir = _log_file_path[:position], title = "Select a File", filetypes = (("Text files", "*.txt*"), ("All files", "*.*")))
+        if new_log_file_path and new_log_file_path != _log_file_path:
             log_file_path = new_log_file_path
             if readloop and not request: stop_monitoring()
             window.log_file_path_input.delete("0", "end")
