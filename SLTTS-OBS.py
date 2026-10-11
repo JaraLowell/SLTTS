@@ -1692,8 +1692,7 @@ async def speak_test_message():
 
 if __name__ == "__main__":
     if os.path.exists("SLTTS.lock"): # Check if an instance of SLTTS already exists
-        if not messagebox.askokcancel("Warning", "        if not messagebox.askokcancel("Warning", "An instance of SLTTS is already running or a previous instance ended abruptly. Proceed?"):
-"):
+        if not messagebox.askokcancel("Warning", "An instance of SLTTS is already running or a previous instance ended abruptly. Proceed?"):
             sys.exit()
         else: primary_instance = False
  
