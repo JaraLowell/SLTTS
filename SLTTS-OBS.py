@@ -544,8 +544,8 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             err_msg = f"{type(e).__name__}: {e or '(no message)'}"
 
         if err_msg:
-            print(f"IGNORED! Error {err_msg} for text: {text2say}")
-            logging.error(f"Error {err_msg} for text: {text2say}")
+            print(f"IGNORED! Error {err_msg} For text: {text2say}")
+            logging.error(f"Error {err_msg} For text: {text2say}")
 
             if not test_msg:
                 """VOLATILE CODE: DO NOT MOVE OR ALTER IN ANY WAY"""
@@ -1669,15 +1669,31 @@ def update_lists():
         [item.strip().lower() for item in window.onlytalk_list_input.get("1.0", "end").split(',') if item.strip()],
     )
 
+test_voice = 0
+
 async def speak_test_message():
     """Speak a test message."""
-    test_message = "This is a Test message from the Second Life Chat to Speech program."
-    task0 = asyncio.create_task(speak_text(test_message, "en-US-EmmaMultilingualNeural", speakers, timedelta(seconds=0), timedelta(seconds=0), False, True))
+    global test_voice
+    # use the first for male and the second for female; otherwise always use the one value given
+    current_value = window.edge_voice_input.get()
+    voices = [v.strip() for v in current_value.split(",")]
+    if not voices:
+        # Empty config use default
+        TestVoice = "en-US-EmmaMultilingualNeural"
+    elif len(voices) == 2:
+        TestVoice = voices[test_voice]
+        test_voice = (test_voice+1)%2
+    else:
+        # Only 1 value or more
+        TestVoice = voices[0]
+    test_message = "This is a Test message from the Second Life Chat-to-Speech program."
+    task0 = asyncio.create_task(speak_text(test_message, TestVoice, speakers, timedelta(seconds=0), timedelta(seconds=0), False, True))
     await task0
 
 if __name__ == "__main__":
     if os.path.exists("SLTTS.lock"): # Check if an instance of SLTTS already exists
-        if not messagebox.askokcancel("Warning", "An instance of SLTTS is already running. Proceed?"):
+        if not messagebox.askokcancel("Warning", "        if not messagebox.askokcancel("Warning", "An instance of SLTTS is already running or a previous instance ended abruptly. Proceed?"):
+"):
             sys.exit()
         else: primary_instance = False
  
@@ -1841,9 +1857,11 @@ if __name__ == "__main__":
     def open_file():
         """Open SL Chat Log File"""
         global log_file_path
-        position = log_file_path.rfind("\\")
-        new_log_file_path = filedialog.askopenfilename(initialdir = log_file_path[:position], title = "Select a File", filetypes = (("Text files", "*.txt*"), ("All files", "*.*")))
-        if new_log_file_path and new_log_file_path != log_file_path:
+        _log_file_path = window.log_file_path_input.get()
+        position = _log_file_path.rfind("\\")
+        if position == -1: position = _log_file_path.rfind("/")
+        new_log_file_path = filedialog.askopenfilename(initialdir = _log_file_path[:position], title = "Select a File", filetypes = (("Text files", "*.txt*"), ("All files", "*.*")))
+        if new_log_file_path and new_log_file_path != _log_file_path:
             log_file_path = new_log_file_path
             if readloop and not request: stop_monitoring()
             window.log_file_path_input.delete("0", "end")
@@ -1940,7 +1958,6 @@ if __name__ == "__main__":
         window.mainloop()
     except Exception as e:
         logging.error(f"Error in main loop: {e}")
-    finally: 
-        if primary_instance:
-            os.remove("SLTTS.lock") # Remove the lock
+    finally:
+        os.remove("SLTTS.lock") # Remove the lock
         
