@@ -9,6 +9,7 @@ logging.basicConfig(filename='sltts.log', level=logging.DEBUG, format='%(asctime
 logging.error("Starting Up")
 
 import asyncio
+import io
 import time
 import pygame
 import regex as re
@@ -26,6 +27,7 @@ import threading
 import builtins
 import shutil
 from tkinter import filedialog
+from tkinter import messagebox
 
 import emoji
 """
@@ -52,6 +54,7 @@ pygame.mixer.music.set_volume(0.75)  # Set volume to 50%
 is_playing = False
 request = 0 # speak_text is request 0, stop_monitoring is request 1
 thread = 1 # speak_text is thread 0, stop_monitoring is thread 1
+cached_timestamp_format = None
 last_message = None
 last_user = None
 last_voice = None
@@ -61,6 +64,104 @@ readloop = False
 play_volume = 0.75  # Default volume
 min_char = 2  # Default minimum characters
 verbose = 0
+slang_patterns = []
+slang_exact_lookup = {}
+name2voice_lookup = {}
+primary_instance = True
+edge_tts_timeout = 45
+shift_pitch = False
+
+def normalize_text(value):
+    """Normalize text for consistent Unicode handling across files and runtime input."""
+    if value is None:
+        return ""
+    return unicodedata.normalize("NFC", str(value)).strip()
+
+def normalize_lookup_key(value):
+    """Normalize and case-fold text for robust dictionary lookups."""
+    return normalize_text(value).casefold()
+
+def build_slang_matchers(mapping):
+    """Compile replacement patterns that support words, symbols, and emoji safely."""
+    patterns = []
+    exact_lookup = {}
+
+    for raw_slang, raw_replacement in mapping.items():
+        slang = normalize_text(raw_slang)
+        replacement = normalize_text(raw_replacement)
+        if not slang:
+            continue
+
+        escaped = re.escape(slang)
+        if re.fullmatch(r"\w+", slang):
+            # Word-like tokens should not match inside larger words.
+            pattern = re.compile(rf"(?<!\w){escaped}(?!\w)", flags=re.IGNORECASE)
+        else:
+            # Symbol/emoji patterns (for example "\\o/" or "🍎") cannot rely on word boundaries.
+            pattern = re.compile(escaped, flags=re.IGNORECASE)
+
+        patterns.append((pattern, replacement))
+        exact_lookup[normalize_lookup_key(slang)] = replacement
+
+    return patterns, exact_lookup
+
+def build_name2voice_lookup(mapping):
+    """Build normalized lookup for speaker-to-voice mapping."""
+    lookup = {}
+    for raw_name, raw_voice in mapping.items():
+        name = normalize_text(raw_name)
+        voice = normalize_text(raw_voice)
+        if not name or not voice:
+            continue
+        lookup[normalize_lookup_key(name)] = voice
+    return lookup
+
+def resolve_name2voice(speaker_part):
+    """Return mapped voice for speaker using normalized Unicode matching."""
+    key = normalize_lookup_key(speaker_part)
+    return name2voice_lookup.get(key)
+    
+def build_voice2gender_lookup(mapping):
+    """Build normalized lookup for voice-to-gender mapping."""
+    lookup = {}
+    for raw_voice, raw_gender in mapping.items():
+        voice = normalize_text(raw_voice)
+        gender = normalize_text(raw_gender)
+        if not voice or not gender:
+            continue
+        lookup[normalize_lookup_key(voice)] = gender
+    return lookup
+    
+def resolve_voice2gender(voice_part):
+    """Return mapped voice for speaker using normalized Unicode matching."""
+    key = normalize_lookup_key(voice_part)
+    return voice2gender_lookup.get(key)
+
+def pitch_from_speaker(speaker_name, VoiceOverride = None, spread_hz=1):
+    """Stable slight pitch offset from speaker name bytes.
+
+    Same avatar always gets the same offset. Different names sharing one Edge
+    voice (for example several females on Emma) land on nearby but distinct
+    pitches so they are easier to tell apart.
+    """
+    thisgender = None
+    if voice2gender_lookup:
+        thisgender = resolve_voice2gender(VoiceOverride)
+        if thisgender == "Female": spread_hz = spread_hz * 2
+    
+    name = normalize_text(speaker_name)
+    if not name:
+        return '+0Hz'
+    n = 0
+    for b in name.encode('utf-8'):
+        n = (n * 31 + b) & 0xFFFFFFFF
+    # 5 slots avaiable shifed by 1Hz before speaker's voices sound unnaturally shifted
+    slot = (n % 5) - 2
+    hz = slot * spread_hz
+    if verbose: print (f'VERBOSE! Voice: {VoiceOverride}, Gender: {thisgender}, Pitch shift: {hz:+d}Hz')
+    #if hz >= 0:
+    #    hz += 1
+    return f'{hz:+d}Hz'
 
 def ascii_name(name):
     # Remove all non-letter characters except spaces (\d\s- to allow hyphenated names and numbers)
@@ -75,6 +176,41 @@ def ascii_name(name):
     # ascii_name(" * * さくら * * ")  > 'Sakura'
     # ascii_name("ms ʟᴀɪᴋᴇɴ")        > 'Ms Laiken'
     # ascii_name("Αλέξανδρος")       > 'Alexandros'
+
+def parse_chat_timestamp(value: str) -> datetime:
+    """Parse chat timestamps while caching the detected format for speed."""
+    global cached_timestamp_format
+
+    if not value:
+        raise ValueError("Timestamp value is empty")
+
+    normalized = value.strip()
+    normalized = normalized.replace("/", "-")
+
+    if cached_timestamp_format is not None:
+        try:
+            return datetime.strptime(normalized, cached_timestamp_format)
+        except ValueError:
+            cached_timestamp_format = None
+
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d %I:%M:%S %p",
+        "%Y-%m-%d %I:%M %p",
+        "%Y-%m-%d %I:%M:%S %p",
+        "%Y-%m-%d %I:%M %p",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+    ):
+        try:
+            parsed = datetime.strptime(normalized, fmt)
+            cached_timestamp_format = fmt
+            return parsed
+        except ValueError:
+            continue
+
+    raise ValueError(f"Unsupported timestamp format: {value}")
 
 def clean_name(name):
     # Lets check if only one language is used in the name
@@ -128,7 +264,7 @@ def url2word(message):
     return message
 
 def spell_check_message(message):
-    global Enable_Spelling_Check, tool, slang_replacements
+    global Enable_Spelling_Check, tool, slang_patterns
     if not message:
         return ""  # Return empty string if message is empty
     elif len(message) == 1:
@@ -179,9 +315,9 @@ def spell_check_message(message):
     #message = re.sub(r'(?<=\w)-(?=\w)', '', message) # Hyphen is dropped in-between/inbetween words joining them together for correct grammar. 
     # Counter productive on some words and it conflicts with the replacement of abbreviations and slang in the next block of code
 
-    # Replace common abbreviations v3.2 slang replacements
-    for slang, replacement in slang_replacements.items():
-        message = re.sub(rf'\b{slang}\b', replacement, message, flags=re.IGNORECASE)
+    # Replace common abbreviations and symbol/emoji aliases.
+    for pattern, replacement in slang_patterns:
+        message = pattern.sub(replacement, message)
 
     # Perform spelling check if enabled
     if Enable_Spelling_Check:
@@ -320,7 +456,9 @@ def create_default_config(file_path):
             'obs_chat_filtered': 'True',
             'edge_tts_llm': 'en-US-AndrewMultilingualNeural, en-US-EmmaMultilingualNeural',
             'concurrent_edge_tts_threads': '3',
-            'replay_chat': '0'
+            'edge_tts_timeout': '45',
+            'replay_chat': '0',
+            'follow_timestamps': '1'
         }
         with open(file_path, 'w') as config_file:
             config.write(config_file)
@@ -342,9 +480,12 @@ speakers = 3
 recording = ""
 max_silence = 3600
 
-async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), time_delta = timedelta(seconds=0), paragraph = True, test_msg = False):
+async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_delta = timedelta(seconds=0), time_delta = timedelta(seconds=0), paragraph = True, test_msg = False, speaker_name=None):
     """Use Edge TTS to speak the given text."""
     global EdgeVoice, window, current_player, speaker_active, speakers, follow_timestamps, record, replay_chat, verbose
+    
+    com_error_flag = False
+    audio_buf = None
     
     if VoiceOverride is not None:
         EdgeVoice = VoiceOverride
@@ -355,9 +496,6 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         EdgeVoice = "en-US-EmmaMultilingualNeural"
 
     try:
-        # Generate and save the audio file
-        output_file = f"output{local_file_counter}.mp3"
-
         # Dynamically adjust the rate based on text length
         min_len, max_len = 64, 384
         min_rate, max_rate = 1, 8
@@ -371,27 +509,59 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             interp = round(min_rate + (max_rate - min_rate) * (text_len - min_len) / (max_len - min_len))
             _rate = f'+{interp}%'
 
+        if shift_pitch and not test_msg:
+            _pitch = pitch_from_speaker(speaker_name, VoiceOverride)
+        else: _pitch = '+0Hz'
+
+        err_msg = None
+        audio_data = b""
         try:
-            await Communicate(text = text2say, voice=EdgeVoice, rate = _rate, pitch = '+0Hz').save(output_file)
+            async def _tts_bytes():
+                chunks = bytearray()
+                communicate = Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch=_pitch)
+                async for message in communicate.stream():
+                    if message["type"] == "audio":
+                        chunks.extend(message["data"])
+                return bytes(chunks)
+            audio_data = await asyncio.wait_for(_tts_bytes(), timeout=edge_tts_timeout)
+            if not audio_data:
+                err_msg = "No audio from Microsoft TTS: empty stream"
+        except asyncio.TimeoutError:
+            err_msg = f"Timeout after {edge_tts_timeout}s — TTS did not finish in time"
+        except edge_tts.exceptions.NoAudioReceived as e:
+            err_msg = f"No audio from Microsoft TTS: {e}"
         except Exception as e:
-            logging.error(f"Error generating audio: {e} Text to say: {text2say}")
+            # str(e) is often empty for some errors; type name always helps
+            err_msg = f"{type(e).__name__}: {e or '(no message)'}"
+
+        if err_msg:
+            print(f"IGNORED! Error {err_msg} For text: {text2say}")
+            logging.error(f"Error {err_msg} For text: {text2say}")
+
             if not test_msg:
-                # Wait for other concurrent threads to give way to play each output file in the right order
+                """VOLATILE CODE: DO NOT MOVE OR ALTER IN ANY WAY"""
                 while local_file_counter != globals()["current_player"]:
                     await asyncio.sleep(0.25)
-                current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
-                speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+                current_player = (current_player + 1) % speakers
+                speaker_active[local_file_counter] = 0
+                """END VOLATILE CODE"""
+                com_error_flag = True
             return
 
+        """VOLATILE CODE: DO NOT MOVE OR ALTER IN ANY WAY"""
         # Wait to play or record output file in the right order over multiple threads
         if not test_msg:
             while local_file_counter != globals()["current_player"]:
                 await asyncio.sleep(0.25)
-
-        # Play the audio file
-        if os.path.exists(output_file):
+        """END VOLATILE CODE"""
+        
+        # Play the in-memory audio (only this speaker slot may touch the mixer)
+        window.start_busy()
+        if audio_data:
             if not replay_chat or not record: # record but don't read text aloud for speed
-                pygame.mixer.music.load(output_file)
+                audio_buf = io.BytesIO(audio_data)
+                audio_buf.seek(0)
+                pygame.mixer.music.load(audio_buf, "mp3")
                 pygame.mixer.music.play()
             if not test_msg:
                 # Record audio output
@@ -411,7 +581,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                         else: padding = time_delta.total_seconds() # record wait time between spoken paragraphs as silence
                         if verbose: print(f"VERBOSE! Seconds of padding needed {round(padding,3)}")
                         if padding >= 60:
-                            if padding > max_silence: padding = max_silence
+                            if padding > max_silence: padding = 0
                             minutes = int(padding / 60)
                             padding = padding%60
                             for i in range(minutes): 
@@ -427,9 +597,9 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                             fileout = open(local_rec, 'ab')
                             fileout.write(f2)
                             fileout.close()             
-                    # append mp3 tts file to recording
-                    with open(output_file, 'rb') as f2, open(local_rec, 'ab') as f1:
-                        shutil.copyfileobj(f2, f1)
+                    # append in-memory mp3 to recording
+                    with open(local_rec, 'ab') as f1:
+                        f1.write(audio_data)
                     if paragraph: # space out paragraphs in recording
                         with open("silence.mp3", 'rb') as file1:
                             silence = file1.read()
@@ -441,30 +611,42 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                         fileout.write(f2)
                         fileout.close()
         else:
-            print(f"NOTICE! Output file not found: {output_file}")
-            logging.error(f"Output file not found: {log_file}")
+            print("NOTICE! No TTS audio received.")
+            logging.error("No TTS audio received.")
             if not test_msg:
                 current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
                 speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
                 await asyncio.sleep(0.25)
             return
 
-        # Wait for playback to finish
-        while pygame.mixer.music.get_busy():
+        # Wait for playback to finish with timeout
+        size = len(audio_data)
+        duration = round(size/144 * 0.024,3) # total duration of mp3 recording so far, rounded to correct maths errors since the result can only contain 3 decimel figures
+        timeout = 60 + duration # maximum wait time in seconds
+        elapsed = 0
+        while pygame.mixer.music.get_busy() and elapsed < timeout:
             #pygame.time.Clock().tick(10) # Not thread safe so use sleep instead
             await asyncio.sleep(0.1)
+            elapsed += 0.1
 
     finally:
         # Clean up and reset the flag
         pygame.mixer.music.stop()
         pygame.mixer.music.unload()
+        if audio_buf is not None:
+            audio_buf.close()
 
+    if com_error_flag:
+        print("NOTICE! Error creating EdgeTTS audio file.")
     # When output file stops playing
-    if not test_msg:
+    if not test_msg and not com_error_flag:
         if paragraph and not (record and replay_chat): 
             await asyncio.sleep(0.24) # add padding between paragraphs unless recording since recording a replay takes place without reading
+        window.stop_busy()
+        """VOLATILE CODE: DO NOT MOVE OR ALTER IN ANY WAY"""
         current_player = (current_player + 1) % speakers # Activate the next player in the seqnece
         speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
+        """END VOLATILE CODE"""
         await asyncio.sleep(0.25) # give time for cleanup
 
 # List to store chat messages for the website
@@ -799,7 +981,7 @@ async def monitor_log(log_file):
             else: log_changed = True
             if replay_chat and log_read and not log_changed: # when no more new chat comes in to replay switch to normal log reading
                 if not window.replay_button.cget("state") == "disabled":
-                    print("There are no more lines to speak. Stop log reading or add new lines to the chat log to be spoken.")
+                    print("NOTICE! There are no more lines to speak. Stop log reading or add new lines to the chat log to be spoken.")
                 window.chat_slider.configure(state="disabled")
                 window.replay_button.configure(state="disabled")
                 window.replay_button.configure(text = "Replay Chat", text_color="#d1d1d1")
@@ -807,7 +989,7 @@ async def monitor_log(log_file):
                 await stopped_speaking()
                 replay_chat = False
                 log_read = False
-                window.stop_busy()
+                #window.stop_busy()
             if log_changed or replay_chat:
                 last_mod_time = current_mod_time
                 # Reopen the file to ensure we get the latest data
@@ -817,7 +999,7 @@ async def monitor_log(log_file):
                         new_lines = file.readlines()
                         len_lines = len(new_lines)
                         if len_lines > 50000 and not iswarned:
-                            print("Warning: Log file is over 50,000 lines. This may cause performance issues.")
+                            print("NOTICE! Warning: Log file is over 50,000 lines. This may cause performance issues.")
                             logging.warning("Log file is over 50,000 lines. This may cause performance issues.")
                             iswarned = True
                             await asyncio.sleep(0.3)
@@ -845,7 +1027,7 @@ async def monitor_log(log_file):
                             if line:
                                 # Process the line (existing logic)
                                 try:
-                                    window.start_busy()
+                                    #window.start_busy()
                                     if paused:
                                         while paused:
                                             if request: # request made to stop monitoring
@@ -856,7 +1038,7 @@ async def monitor_log(log_file):
                                             await asyncio.sleep(1.00)
                                         stamp_read = False
                                         #log_read = False
-                                    if line.startswith("[") and line[11] == " " and (line[20] == "]" or line[17] == "]"):
+                                    if line.startswith("[") and line[11] == " " and (line[20] == "]" or line[17] == "]" or line[23] == "]"):
                                         isemote = False
                                         isrepat = False
                                         # Extract timestamp and message
@@ -865,14 +1047,17 @@ async def monitor_log(log_file):
                                         # Read chat log file from start to end following timestamps
                                         if follow_timestamps and (replay_chat or record):
                                             # convert SL timestamp to a datetime object used by Python
+                                            """
                                             date_time = timestamp.replace("/","-")
                                             if len(date_time) is 19:
                                                 date_format = "%Y-%m-%d %H:%M:%S"
                                             elif len(date_time) is 16:
                                                 date_format = "%Y-%m-%d %H:%M"
+                                            """
                                                 
                                             try:
-                                                new_stamp = datetime.strptime(date_time, date_format)
+                                                new_stamp = parse_chat_timestamp(timestamp)
+                                                #new_stamp = datetime.strptime(date_time, date_format)
                                             except Exception as e:
                                                 logging.error(f"Error reading date stamp: {e}")
 
@@ -933,9 +1118,8 @@ async def monitor_log(log_file):
                                         thisvoice = None
                                         gender = None
 
-                                        if name2voice:
-                                            if speaker_part in name2voice:
-                                                thisvoice = name2voice[speaker_part]
+                                        if name2voice_lookup:
+                                            thisvoice = resolve_name2voice(speaker_part)
 
                                         if IgnoreList and any(item.strip() for item in IgnoreList):
                                             for ignore_item in IgnoreList:
@@ -990,8 +1174,9 @@ async def monitor_log(log_file):
                                             
                                             # Use unidecode to transliterate the speaker name
                                             tmp_speaker = unidecode(speaker.lower(), errors='ignore', replace_str='¿').title()
+                                            speaker_lower = speaker.lower()
 
-                                            if speaker == 'Second Life':
+                                            if speaker_lower == 'second life' or speaker_lower == 'secondlife':
                                                 first_name = None
                                             elif " " in tmp_speaker:
                                                 tmp = (re.sub(r'\s+', ' ', tmp_speaker).strip()).split(' ')
@@ -1010,8 +1195,9 @@ async def monitor_log(log_file):
                                             if first_name is not None: first_name = re.sub(r'^\d+(?=\D)|(?<=\D)\d+$', '', first_name)
 
                                             # Replace known display name/gibberish name with replacement name in slang replacements
-                                            if first_name in slang_replacements:
-                                                first_name = slang_replacements[first_name]
+                                            slang_first_name = slang_exact_lookup.get(normalize_lookup_key(first_name))
+                                            if slang_first_name:
+                                                first_name = slang_first_name
 
                                             logging.warning(f"Avatar Name: {speaker_part}, UniDecode: {tmp_speaker} Result Speaker: {first_name}")
 
@@ -1125,7 +1311,7 @@ async def monitor_log(log_file):
                                                             paragraph = False # segmented paragraph has not reached the last segment of sentances so don't add an end paragraph delay when speaking or recording
                                                         pg_delta = timedelta(seconds=0) # don't delay start of speaking of paragraph or segment
                                                         speaker_active[output_file_counter] = 1
-                                                        task1[output_file_counter] = asyncio.create_task(speak_text(to_speak, thisvoice, output_file_counter, chat_delta, pg_delta, paragraph))
+                                                        task1[output_file_counter] = asyncio.create_task(speak_text(to_speak, thisvoice, output_file_counter, chat_delta, pg_delta, paragraph, speaker_name=speaker_part))
                                                         if speakers == 1: await task1[output_file_counter] # default to legacy behaviour if there is only one speaker thread
                                                         # Rotate to next output file
                                                         output_file_counter = (output_file_counter + 1) % speakers
@@ -1156,7 +1342,7 @@ async def monitor_log(log_file):
                                             if follow_timestamps and (replay_chat or record):
                                                 # convert custom timestamp to a datetime object used by Python
                                                 date_time = timestamp.replace("/","-")
-                                                if len(date_time) is 12:
+                                                if len(date_time) == 12:
                                                     date_format = "1970-01-01 %H:%M:%S.%f"
                                                 try:
                                                     date_time = "1970-01-01 " + date_time
@@ -1191,9 +1377,8 @@ async def monitor_log(log_file):
                                         if custom_reader and replay_chat and last_user is None:
                                             speaker_part = "Narrator"
                                             thisvoice = None
-                                            if name2voice:
-                                                if speaker_part in name2voice:
-                                                    thisvoice = name2voice[speaker_part]
+                                            if name2voice_lookup:
+                                                thisvoice = resolve_name2voice(speaker_part)
                                             if speaker_part in name_cache:
                                                 cached = name_cache[speaker_part]
                                                 if isinstance(cached, tuple) and len(cached) == 3:
@@ -1262,7 +1447,7 @@ async def monitor_log(log_file):
                                                         paragraph = False
                                                     else: paragraph = False # first sentance in split paragraph so no delay between sentances but delay between this and the last paragraph in recording
                                                     speaker_active[output_file_counter] = 1
-                                                    task1[output_file_counter] = asyncio.create_task(speak_text(message, last_voice, output_file_counter, chat_delta, time_delta, paragraph))
+                                                    task1[output_file_counter] = asyncio.create_task(speak_text(message, last_voice, output_file_counter, chat_delta, time_delta, paragraph, speaker_name=last_user))
                                                     if speakers == 1: await [output_file_counter] # legacy behaviour
                                                     # Rotate to next output file
                                                     output_file_counter = (output_file_counter + 1) % speakers
@@ -1278,8 +1463,11 @@ async def monitor_log(log_file):
                                     if match:
                                         rest = match.group(1).strip()
                                     print(f"IGNORED! {url2word(rest).strip()}")
-
-                                window.stop_busy()
+                                except Exception as e:
+                                    logging.error(f"Error processing line: {e}")
+                                    print(f"NOTICE! Error processing line: {e}")
+                                #finally:
+                                #    window.stop_busy()
                             await asyncio.sleep(0.3) # Qt5 update_display might crash if we spam it too fast
                 except FileNotFoundError:
                     logging.error(f"Log file not found: {log_file}")
@@ -1368,9 +1556,20 @@ def update_minchar(value, window=None):
 
 def load_slang_replacements(file_path):
     if file_path and os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, "r", encoding="utf-8-sig") as file:
             try:
-                return json.load(file)
+                data = json.load(file)
+                if not isinstance(data, dict):
+                    logging.error(f"Error: expected JSON object mapping in file: {file_path}")
+                    return {}
+
+                cleaned = {}
+                for key, value in data.items():
+                    norm_key = normalize_text(key)
+                    norm_value = normalize_text(value)
+                    if norm_key and norm_value:
+                        cleaned[norm_key] = norm_value
+                return cleaned
             except json.JSONDecodeError as e:
                 logging.error(f"Error: loading file: {e}")
                 return {}
@@ -1452,16 +1651,46 @@ def shut_down_monitoring():
 def update_lists():
     """Update the IgnoreList and SpeakOnlyList from the UI."""
     print("Updating IgnoreList and SpeakOnlyList...")
-    update_global("IgnoreList", [item.strip().lower() for item in window.ignore_list_input.get("1.0", "end").split(',')])
-    update_global("SpeakOnlyList", [item.strip().lower() for item in window.onlytalk_list_input.get("1.0", "end").split(',')])
+    update_global(
+        "IgnoreList",
+        [item.strip().lower() for item in window.ignore_list_input.get("1.0", "end").split(',') if item.strip()],
+    )
+    update_global(
+        "SpeakOnlyList",
+        [item.strip().lower() for item in window.onlytalk_list_input.get("1.0", "end").split(',') if item.strip()],
+    )
+
+test_voice = 0
 
 async def speak_test_message():
     """Speak a test message."""
-    test_message = "This is a Test message from the Second Life Chat to Speech program."
-    task0 = asyncio.create_task(speak_text(test_message, "en-US-EmmaMultilingualNeural", speakers, timedelta(seconds=0), timedelta(seconds=0), False, True))
+    global test_voice
+    # use the first for male and the second for female; otherwise always use the one value given
+    current_value = window.edge_voice_input.get()
+    voices = [v.strip() for v in current_value.split(",")]
+    if not voices:
+        # Empty config use default
+        TestVoice = "en-US-EmmaMultilingualNeural"
+    elif len(voices) == 2:
+        TestVoice = voices[test_voice]
+        test_voice = (test_voice+1)%2
+    else:
+        # Only 1 value or more
+        TestVoice = voices[0]
+    test_message = "This is a Test message from the Second Life Chat-to-Speech program."
+    task0 = asyncio.create_task(speak_text(test_message, TestVoice, speakers, timedelta(seconds=0), timedelta(seconds=0), False, True))
     await task0
 
 if __name__ == "__main__":
+    if os.path.exists("SLTTS.lock"): # Check if an instance of SLTTS already exists
+        if not messagebox.askokcancel("Warning", "An instance of SLTTS is already running or a previous instance ended abruptly. Proceed?"):
+            sys.exit()
+        else: primary_instance = False
+ 
+    if primary_instance:
+        with open("SLTTS.lock", "a") as f:
+            f.write("LOCKED TO ONE INSANCE!") # Lock to only once instance of the programme in the same directory
+        
     if create_default_config('config.ini'):
         logging.error("Default config.ini created. Please edit it with your settings.")
         sys.exit(0)
@@ -1473,10 +1702,15 @@ if __name__ == "__main__":
     global Enable_Spelling_Check, IgnoreList, OBSChatFiltered, EdgeVoicem, SpeakOnlyList#, speakers, replay_chat, follow_timestamps, record, verbose
     log_file_path = config.get('Settings', 'log_file_path')
     Enable_Spelling_Check = config.getboolean('Settings', 'enable_spelling_check')
-    IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list', fallback='').split(',')]
-    SpeakOnlyList = [item.strip() for item in config.get('Settings', 'speak_only_list', fallback='').split(',')]
+    IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list', fallback='').split(',') if item.strip()]
+    SpeakOnlyList = [item.strip() for item in config.get('Settings', 'speak_only_list', fallback='').split(',') if item.strip()]
     OBSChatFiltered = config.getboolean('Settings', 'obs_chat_filtered')
     EdgeVoice = config.get('Settings', 'edge_tts_llm')
+    edge_tts_timeout = config.getint('Settings', 'edge_tts_timeout', fallback=45)
+    if edge_tts_timeout < 10:
+        edge_tts_timeout = 10
+    elif edge_tts_timeout > 300:
+        edge_tts_timeout = 300
     min_char = config.getint('Settings', 'min_char', fallback=2)
     speakers = config.getint('Settings', 'concurrent_edge_tts_threads', fallback=3)
     if speakers <= 0: speakers = 1
@@ -1488,6 +1722,7 @@ if __name__ == "__main__":
     record_directory = config.get('Settings', 'record_directory', fallback='Recordings')
     custom_reader = config.getint('Settings', 'custom_reader', fallback=0)
     max_silence = config.getint('Settings', 'max_silence', fallback=7200)
+    shift_pitch = config.getint('Settings', 'enable_pitch_shift', fallback=0)
     # all_voices = asyncio.run(get_voices()) # Fetch all voices
 
     update_volume(config.getint('Settings', 'volume', fallback=75))
@@ -1501,7 +1736,43 @@ if __name__ == "__main__":
     monitor_task = None
     monitor_loop = None
     slang_replacements = {}
+    slang_patterns = []
+    slang_exact_lookup = {}
     name2voice = {}
+    name2voice_lookup = {}
+
+    def refresh_name2voice_mapping():
+        """Reload name-to-voice mappings from disk so UI edits take effect immediately."""
+        global name2voice, name2voice_lookup
+        name2voice = load_slang_replacements("name2voice.json")
+        name2voice_lookup = build_name2voice_lookup(name2voice)
+        if name2voice:
+            print(f"NOTICE! Name to voice file reading done, {len(name2voice)} replacements found and loaded.")
+        else:
+            print("NOTICE! Name to voice file is empty, missing, or contains no valid entries.")
+
+    def refresh_slang_mapping():
+        """Reload slang replacement mappings from disk so UI edits take effect immediately."""
+        global slang_replacements, slang_patterns, slang_exact_lookup
+        slang_replacements = load_slang_replacements("slangreplce.json")
+        slang_patterns, slang_exact_lookup = build_slang_matchers(slang_replacements)
+        if slang_replacements:
+            print(f"NOTICE! Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
+        else:
+            print("NOTICE! Abbreviation file is empty, missing, or contains no valid entries.")
+
+    voice2gender = {}
+    voice2gender_lookup = {}
+    
+    def refresh_voice2gender_mapping():
+        """Reload slang replacement mappings from disk so UI edits take effect immediately."""
+        global voice2gender, voice2gender_lookup
+        voice2gender = load_slang_replacements("voice2gender.json")
+        voice2gender_lookup = build_voice2gender_lookup(voice2gender)
+        if voice2gender:
+            print(f"NOTICE! Voice file reading done, {len(voice2gender)} voices found and loaded.")
+        else:
+            print("NOTICE! Voice file is empty, missing, or contains no valid entries.")
 
     def start_monitoring_ui():
         """Start monitoring from the UI."""
@@ -1510,12 +1781,9 @@ if __name__ == "__main__":
         log_file_path = window.log_file_path_input.get()  # Get the log file path from the input field
         if os.path.exists(log_file_path):
             readloop = True
-            slang_replacements = load_slang_replacements("slangreplce.json")
-            if slang_replacements:
-                print(f"NOTICE! Abbreviation file reading done, {len(slang_replacements)} replacements found and loaded.")
-            name2voice = load_slang_replacements("name2voice.json")
-            if name2voice:
-                print(f"NOTICE! Name to voice file reading done, {len(name2voice)} replacements found and loaded.")
+            refresh_slang_mapping()
+            refresh_name2voice_mapping()
+            refresh_voice2gender_mapping()
             chat_messages.clear()
             start_monitoring(log_file_path)
             window.start_button.configure(text="Stop Log Reading", text_color="#ff8080")
@@ -1579,9 +1847,11 @@ if __name__ == "__main__":
     def open_file():
         """Open SL Chat Log File"""
         global log_file_path
-        position = log_file_path.rfind("\\")
-        new_log_file_path = filedialog.askopenfilename(initialdir = log_file_path[:position], title = "Select a File", filetypes = (("Text files", "*.txt*"), ("All files", "*.*")))
-        if new_log_file_path and new_log_file_path != log_file_path:
+        _log_file_path = window.log_file_path_input.get()
+        position = _log_file_path.rfind("\\")
+        if position == -1: position = _log_file_path.rfind("/")
+        new_log_file_path = filedialog.askopenfilename(initialdir = _log_file_path[:position], title = "Select a File", filetypes = (("Text files", "*.txt*"), ("All files", "*.*")))
+        if new_log_file_path and new_log_file_path != _log_file_path:
             log_file_path = new_log_file_path
             if readloop and not request: stop_monitoring()
             window.log_file_path_input.delete("0", "end")
@@ -1637,6 +1907,8 @@ if __name__ == "__main__":
     window.open_button.configure(command=open_file)
     window.quick_button.configure(command=toggle_quick_play)
     window.pause_button.configure(command=toggle_pause)
+    window.set_name2voice_change_callback(refresh_name2voice_mapping)
+    window.set_slang_change_callback(refresh_slang_mapping)
     # audio_device_menu
     window.audio_device_menu.configure(command=lambda value: set_audio_device(value))
   
@@ -1658,7 +1930,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.4, by Jara Lowell")
+    print("Second Life Chat log to Speech version 2.0.7.3, by Jara Lowell")
     
     if record == True:
         toggle_recording()
@@ -1670,9 +1942,12 @@ if __name__ == "__main__":
         
     if follow_timestamps == False:
         toggle_quick_play()
-    
+
     # Start the window application event loop
     try:
         window.mainloop()
     except Exception as e:
         logging.error(f"Error in main loop: {e}")
+    finally:
+        os.remove("SLTTS.lock") # Remove the lock
+        

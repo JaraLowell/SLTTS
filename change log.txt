@@ -1,5 +1,65 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.7.3"""
+
+Fixed storing Empty Ignore List and Speaker Only List
+
+Updated the way Name to Gender and Slang Edit window is drawn, so it does not lag a system when there a large list to be loaded or that window is moved around the screen.
+
+Each English EdgeTTS voice can now be pitch shifted based on assigned gender and the speaker's name so that different named avatars assigned with the same voice do not all sound the same. There are 5 levels of pitch shift possible (-2, -1, 0, 1, 2) before the voices start to sound unnatural. Female voices will have their pitch shifted by twice as many Hz as male voices, since female voices are on average double the pitch of male voices. Additional non-English voices can be assigned a gender in voice2gender.json otherwise, they will be treated the same as male voices in regard to shifting pitch.
+
+Set enable_pitch_shift = 1 in config.ini to enable.
+
+--Jara Lowell, Socrates Dionysus, 20 August 2026
+
+
+"""Main changes made in version 2.0.7.2"""
+
+Replaced writing temporary audio files to disk with in-memory playback. Running multiple instances from the same directory is now safe during playback and recording. Running multiple instances from the same directory can still corrupt files and settings being written to disk, so it is not recommended.
+
+--Jara Lowell, 13 August 2026
+
+
+"""Main changes made in version 2.0.7.1"""
+
+If EdgeTTS fails to complete rendering text to speech the output file may still be locked. SLTTS will now attempt to unlock and delete it to free up the thread. The speak_text function may not be returning correctly after this error so code has been added to prevent issues.
+
+--Socrates Dionysus, 12 August 2026
+
+
+"""Main changes made in version 2.0.7"""
+
+Fixed the ticker not ticking when a message is being spoken.
+
+Added a timeout for how long to wait for EdgeTTS to provide an output file in case EdgeTTS fails to respond
+
+edge_tts_timeout = 45
+
+Prevented more than one instance of SLTTS from being launched at the same time as another instance is running from the same folder. The user can choose to allow a new instance to run but this is inadvisable since it can overwrite files and freeze the read loop.
+
+--Socrates Dionysus, 12 August 2026
+
+
+"""Main changes made in version 2.0.6"""
+
+Edit the Name to Voice and Slang File inside the tool.
+
+--Jara Lowell
+
+
+"""Main changes made in version 2.0.5"""
+
+Merged the main branch with the dev branch. The main branch is now ahead of dev.
+
+Saving config now allows the new settings that have been added to be saved.
+
+There are multiple timestamp formats the SL chat log can use so each is now parsed.
+
+Added a timeout so that if playback stops responding the player being used will stop after the expected duration of the output file plus 60 seconds.
+
+--Jara Lowell, Socrates Dionysus, 11 August 2026
+
+
 """Main changes made in version 2.0.4"""
 
 Highlighted operational notices posted to the chat window in amber.
