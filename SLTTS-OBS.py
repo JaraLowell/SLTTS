@@ -5,6 +5,7 @@
 import sys
 import os
 import logging
+
 logging.basicConfig(filename='sltts.log', level=logging.DEBUG, format='%(asctime)s : %(message)s', datefmt='%m-%d %H:%M', filemode='w', encoding='utf-8')
 logging.error("Starting Up")
 
@@ -13,6 +14,7 @@ import io
 import time
 import pygame
 import regex as re
+import edge_tts
 from edge_tts import Communicate
 from edge_tts import list_voices
 import unicodedata
@@ -1930,7 +1932,8 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.7.3, by Jara Lowell")
+    print("Second Life Chat log to Speech version 2.0.7.4, by Jara Lowell & Socrates Dionysus")
+    print("Microsoft Edge's online text-to-speech service Edge-TTS version:", edge_tts.__version__)
     
     if record == True:
         toggle_recording()
