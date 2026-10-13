@@ -13,17 +13,8 @@ import io
 import time
 import pygame
 import regex as re
-"""
-Temporary configuration for edge-tts WebSocket URL.
-To point to a custom WebSocket endpoint, modify the WSS_URL accordingly.
-need import edge_tts.communicate as cm
-from edge_tts.constants import TRUSTED_CLIENT_TOKEN
-"""
-import edge_tts, edge_tts.communicate as cm
-from edge_tts.constants import TRUSTED_CLIENT_TOKEN
 from edge_tts import Communicate
 from edge_tts import list_voices
-cm.WSS_URL = f"wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1?Ocp-Apim-Subscription-Key={TRUSTED_CLIENT_TOKEN}"
 import unicodedata
 from unidecode import unidecode
 from configparser import ConfigParser
