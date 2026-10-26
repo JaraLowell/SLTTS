@@ -1,5 +1,14 @@
 CHANGE LOG
 
+"""Main changes made in version 2.0.7.4"""
+
+Updated the code and dependencies to make SLTTS compatible with changes Microsoft made to EdgeTTS which resulted in "WSServerHandshakeError".
+
+Implemented a workaround to allow up to 10 retries to generate audio for each passage of text after multiple users of EdgeTTS reported no audio being generated.
+
+--Jara Lowell, Socrates Dionysus, 26 October 2026
+
+
 """Main changes made in version 2.0.7.3"""
 
 Fixed storing Empty Ignore List and Speaker Only List
