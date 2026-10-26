@@ -515,26 +515,42 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             _pitch = pitch_from_speaker(speaker_name, VoiceOverride)
         else: _pitch = '+0Hz'
 
-        err_msg = None
-        audio_data = b""
-        try:
-            async def _tts_bytes():
-                chunks = bytearray()
-                communicate = Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch=_pitch)
-                async for message in communicate.stream():
-                    if message["type"] == "audio":
-                        chunks.extend(message["data"])
-                return bytes(chunks)
-            audio_data = await asyncio.wait_for(_tts_bytes(), timeout=edge_tts_timeout)
-            if not audio_data:
-                err_msg = "No audio from Microsoft TTS: empty stream"
-        except asyncio.TimeoutError:
-            err_msg = f"Timeout after {edge_tts_timeout}s — TTS did not finish in time"
-        except edge_tts.exceptions.NoAudioReceived as e:
-            err_msg = f"No audio from Microsoft TTS: {e}"
-        except Exception as e:
-            # str(e) is often empty for some errors; type name always helps
-            err_msg = f"{type(e).__name__}: {e or '(no message)'}"
+        retry = 0
+        while retry < 10:
+            err_msg = None
+            audio_data = b""
+            try:
+                async def _tts_bytes():
+                    chunks = bytearray()
+                    communicate = Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch=_pitch)
+                    async for message in communicate.stream():
+                        if message["type"] == "audio":
+                            chunks.extend(message["data"])
+                    return bytes(chunks)
+                audio_data = await asyncio.wait_for(_tts_bytes(), timeout=edge_tts_timeout)
+                if not audio_data:
+                    err_msg = "No audio from Microsoft TTS: empty stream"
+            except asyncio.TimeoutError:
+                err_msg = f"Timeout after {edge_tts_timeout}s — TTS did not finish in time"
+            except edge_tts.exceptions.NoAudioReceived as e:
+                err_msg = f"No audio from Microsoft TTS: {e}"
+            except Exception as e:
+                # str(e) is often empty for some errors; type name always helps
+                err_msg = f"{type(e).__name__}: {e or '(no message)'}"
+            if err_msg:
+                if err_msg.startswith("WSServerHandshakeError"): 
+                    retry += 1
+                    if verbose: print(f"VERBOSE! WSServerHandshakeError")
+                    await asyncio.sleep(0.02)
+                elif err_msg.startswith("No audio"):
+                    retry += 1
+                    if verbose: print(f"VERBOSE! No audio")
+                    await asyncio.sleep(1.00)
+                else:
+                   retry += 4
+                   if verbose: print(f"VERBOSE! {err_msg}")
+                   await asyncio.sleep(0.10)
+            else: break
 
         if err_msg:
             print(f"IGNORED! Error {err_msg} For text: {text2say}")
