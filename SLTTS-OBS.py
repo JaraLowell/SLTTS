@@ -666,7 +666,8 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         speaker_active[local_file_counter] = 0 # Tell programme that playback has stopped in this thread
         """END VOLATILE CODE"""
         await asyncio.sleep(0.25) # give time for cleanup
-
+    else: window.stop_busy()
+ 
 # List to store chat messages for the website
 chat_messages = []
 
