@@ -542,6 +542,13 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                     retry += 1
                     if verbose: print(f"VERBOSE! WSServerHandshakeError")
                     await asyncio.sleep(0.02)
+                elif err_msg.startswith("No audio from Microsoft TTS: empty stream"):
+                    retry += 1
+                    if verbose: print(f"VERBOSE! No audio")
+                    await asyncio.sleep(1.00)
+                elif err_msg.startswith("No audio"):
+                    if verbose: print(f"VERBOSE! No audio")
+                    break # don't retry if parameters do not produce speech
                 elif err_msg.startswith("No audio"):
                     retry += 1
                     if verbose: print(f"VERBOSE! No audio")
