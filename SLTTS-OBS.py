@@ -490,12 +490,13 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
     audio_buf = None
     
     if VoiceOverride is not None:
-        EdgeVoice = VoiceOverride
+        LocalEdgeVoice = VoiceOverride
+    else: LocalEdgeVoice = EdgeVoice
 
-    if not is_valid_voice_format(EdgeVoice):
-        print(f"NOTICE! Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
-        logging.error(f"Invalid voice format: {EdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
-        EdgeVoice = "en-US-EmmaMultilingualNeural"
+    if not is_valid_voice_format(LocalEdgeVoice):
+        print(f"NOTICE! Invalid voice format: {LocalEdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
+        logging.error(f"Invalid voice format: {LocalEdgeVoice}. Using default voice 'en-US-EmmaMultilingualNeural'.")
+        LocalEdgeVoice = "en-US-EmmaMultilingualNeural"
 
     try:
         # Dynamically adjust the rate based on text length
@@ -522,7 +523,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
             try:
                 async def _tts_bytes():
                     chunks = bytearray()
-                    communicate = Communicate(text=text2say, voice=EdgeVoice, rate=_rate, pitch=_pitch)
+                    communicate = Communicate(text=text2say, voice=LocalEdgeVoice, rate=_rate, pitch=_pitch)
                     async for message in communicate.stream():
                         if message["type"] == "audio":
                             chunks.extend(message["data"])
@@ -546,10 +547,6 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
                     if len(text2say) > 1:
                         retry += 1
                     else: retry += 4
-                    if verbose: print(f"VERBOSE! No audio")
-                    await asyncio.sleep(1.00)
-                elif err_msg.startswith("No audio"):
-                    retry += 1
                     if verbose: print(f"VERBOSE! No audio")
                     await asyncio.sleep(1.00)
                 else:
@@ -673,7 +670,7 @@ async def speak_text(text2say, VoiceOverride=None, local_file_counter=0, chat_de
         """END VOLATILE CODE"""
         await asyncio.sleep(0.25) # give time for cleanup
     else: window.stop_busy()
- 
+
 # List to store chat messages for the website
 chat_messages = []
 
@@ -1724,7 +1721,7 @@ if __name__ == "__main__":
     config.read('config.ini')
 
     # Parse configuration values
-    global Enable_Spelling_Check, IgnoreList, OBSChatFiltered, EdgeVoicem, SpeakOnlyList#, speakers, replay_chat, follow_timestamps, record, verbose
+    global Enable_Spelling_Check, IgnoreList, OBSChatFiltered, EdgeVoice, SpeakOnlyList#, speakers, replay_chat, follow_timestamps, record, verbose
     log_file_path = config.get('Settings', 'log_file_path')
     Enable_Spelling_Check = config.getboolean('Settings', 'enable_spelling_check')
     IgnoreList = [item.strip() for item in config.get('Settings', 'ignore_list', fallback='').split(',') if item.strip()]
@@ -1955,7 +1952,7 @@ if __name__ == "__main__":
     # Replace the built-in print function with the custom one
     builtins.print = custom_print
 
-    print("Second Life Chat log to Speech version 2.0.7.4, by Jara Lowell & Socrates Dionysus")
+    print("Second Life Chat log to Speech version 2.0.7.5, by Jara Lowell & Socrates Dionysus")
     print("Microsoft Edge's online text-to-speech service Edge-TTS version:", edge_tts.__version__)
     
     if record == True:
