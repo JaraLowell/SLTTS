@@ -1,4 +1,12 @@
 CHANGE LOG
+"""Main changes made in version 2.0.7.5"""
+
+The global EdgeVoice value was being overwritten by speak_text() sometimes resulting in the wrong voice being used when running parallel speaker threads. A local variable LocalEdgeVoice is now being used.
+
+EdgeVoice misnamed EdgeVoicem in global call on line 1723 is now corrected at line 1724.
+
+--Socrates Dionysus, 26 October 2026
+
 
 """Main changes made in version 2.0.7.4"""
 
